@@ -66,8 +66,24 @@ struct Camera {
 		defocus_disk_v = v * defocus_radius;
 	}
 
+	__device__ bool data_hit(const ray& r, float t_min, float t_max, hit_record& rec, int numObjects) {
+		hit_record temp_rec;
+		bool hit_anything = false;
+		auto closest_so_far = t_max;
 
-    __device__ color ray_color(const ray& r, curandState* states, int idx, int x, int y, hittable_list* data) {
+		for (uint16_t i = 0; i < numObjects; i++) {
+			hittable* ptr = (hittable*)(&data_arr[i]);
+			if (ptr->hit(r, t_min, closest_so_far, temp_rec)) {
+				hit_anything = true;
+				closest_so_far = temp_rec.t;
+				rec = temp_rec;
+			}
+		}
+
+		return hit_anything;
+	}
+
+    __device__ color ray_color(const ray& r, curandState* states, int idx, int x, int y, int numObjects) {
 		hit_record rec;
 		bool hit = false;
 
@@ -78,7 +94,7 @@ struct Camera {
 
 		while (iter < bounce_limit) {
 			hit = false;
-			if (data->hit(current_ray, 0.001, INFINITY, rec)) {
+			if (data_hit(current_ray, 0.001, INFINITY, rec, numObjects)) {
 				// If hit, continue recursion after computing scatter color
 				ray scattered;
 				color attenuation;
@@ -109,7 +125,7 @@ struct Camera {
 		return accumulator;
 	}
 
-	__device__ void render(uchar4* ptr, curandState* states, hittable_list* data) {
+	__device__ void render(uchar4* ptr, curandState* states, int numObjects) {
 		int x = threadIdx.x + blockIdx.x * blockDim.x;
 		int y = threadIdx.y + blockIdx.y * blockDim.y;
 		int offset = x + y * image_width;
@@ -119,7 +135,7 @@ struct Camera {
 		color pixel_color(0, 0, 0);
 		for (int s = 0; s < samples_per_pixel; s++) {
 			ray r = get_ray(x, y, states, offset);
-			pixel_color += ray_color(r, states, offset, x, y, data);
+			pixel_color += ray_color(r, states, offset, x, y, numObjects);
 		}
 
 		auto scale = 1.0 / samples_per_pixel;

@@ -5,17 +5,17 @@
 
 #include "ray.cuh"
 #include "hit_record.cuh"
-#include "aabb.cuh"
+
+union data_union;
+union mat_union;
 
 class hittable {
 	public:
 		virtual ~hittable() = default;
 
-		virtual __device__ bool hit(const ray& r, float t_min, float t_max, hit_record& rec) const = 0;
-		virtual int toDevice(hittable** list, int idx) = 0;
-		virtual void freeFromDevice() const = 0;
-
-		virtual __device__ aabb bounding_box() const = 0;
+		virtual __device__ bool hit(const ray& r, float t_min, float t_max, hit_record& rec) const { return false; }
+		virtual int toDevice(hittable** list, int data_idx, int& mat_idx, data_union* ptr, mat_union* mat_ptr) { return data_idx; }
+		virtual void freeFromDevice() const {}
 
 	public:
 		hittable* gpu_obj;

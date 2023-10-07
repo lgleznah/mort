@@ -40,8 +40,8 @@ struct DataBlock {
 	hittable_list data;
 };
 
-__global__ void renderKernel(Camera camera, uchar4* ptr, curandState* states, hittable_list* data) {
-	camera.render(ptr, states, data);
+__global__ void renderKernel(Camera camera, uchar4* ptr, curandState* states, int numObjects) {
+	camera.render(ptr, states, numObjects);
 }
 
 void input(DataBlock* d) {
@@ -101,7 +101,7 @@ void update(uchar4* output_bitmap, DataBlock* d, int ticks) {
 	dim3 threads(16, 16);
 
 	//// Render
-	renderKernel <<<blocks, threads >>> (d->cam, output_bitmap, d->rand_states, d->data.gpu_hittable_list);
+	renderKernel <<<blocks, threads >>> (d->cam, output_bitmap, d->rand_states, d->data.num_obj);
 	//gpuErrchk(cudaPeekAtLastError());
 	//gpuErrchk(cudaDeviceSynchronize());
 

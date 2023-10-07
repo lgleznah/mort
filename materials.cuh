@@ -8,11 +8,13 @@
 #include "hit_record.cuh"
 #include "ray.cuh"
 
+union mat_union;
+
 class material {
 	public:
 		virtual ~material() = default;
-		virtual __device__ bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, curandState* states, int idx) const = 0;
-		virtual void toDevice() = 0;
+		virtual __device__ bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, curandState* states, int idx) const { return false; }
+		virtual void toDevice(int mat_idx, mat_union* arr_ptr) {}
 
 		material* gpu_mat;
 };
@@ -32,7 +34,7 @@ class lambertian : public material {
 			return true;
 		}
 
-		void toDevice() override;
+		void toDevice(int mat_idx, mat_union* arr_ptr) override;
 };
 
 class metal : public material {
@@ -51,7 +53,7 @@ class metal : public material {
 			return dot(scattered.direction(), rec.normal) > 0;
 		}
 
-		virtual void toDevice() override;
+		virtual void toDevice(int mat_idx, mat_union* arr_ptr) override;
 };
 
 class dielectric : public material {
@@ -85,45 +87,33 @@ class dielectric : public material {
 			return true;
 		}
 
-		virtual void toDevice() override;
+		virtual void toDevice(int mat_idx, mat_union* arr_ptr) override;
 };
 
+__global__ void lambertianToDevice(color albedo, int mat_idx, material** ptr, mat_union* arr_ptr);
+__global__ void metalToDevice(color albedo, float fuzz, int mat_idx, material** ptr, mat_union* arr_ptr);
+__global__ void dielectricToDevice(float ior, color albedo, int mat_idx, material** ptr, mat_union* arr_ptr);
 
-__global__ void lambertianToDevice(color albedo, material** ptr) {
-	lambertian* gpu_lambertian = new lambertian(albedo);
-	*ptr = gpu_lambertian;
-}
-
-__global__ void metalToDevice(color albedo, float fuzz, material** ptr) {
-	metal* gpu_metal = new metal(albedo, fuzz);
-	*ptr = gpu_metal;
-}
-
-__global__ void dielectricToDevice(float ior, color albedo, material** ptr) {
-	dielectric* gpu_dielectric = new dielectric(ior, albedo);
-	*ptr = gpu_dielectric;
-}
-
-void lambertian::toDevice() {
+void lambertian::toDevice(int mat_idx, mat_union* arr_ptr) {
 	material** gpu_gpu_mat_ptr;
 	HANDLE_ERROR(cudaMalloc((void**)&gpu_gpu_mat_ptr, sizeof(material*)));
-	lambertianToDevice<<<1, 1 >>>(albedo, gpu_gpu_mat_ptr);
+	lambertianToDevice<<<1, 1 >>>(albedo, mat_idx, gpu_gpu_mat_ptr, arr_ptr);
 	HANDLE_ERROR(cudaMemcpy(&gpu_mat, gpu_gpu_mat_ptr, sizeof(material*), cudaMemcpyDeviceToHost));
 	HANDLE_ERROR(cudaFree(gpu_gpu_mat_ptr));
 }
 
-void metal::toDevice() {
+void metal::toDevice(int mat_idx, mat_union* arr_ptr) {
 	material** gpu_gpu_mat_ptr;
 	HANDLE_ERROR(cudaMalloc((void**)&gpu_gpu_mat_ptr, sizeof(material*)));
-	metalToDevice<<<1, 1 >>>(albedo, fuzz, gpu_gpu_mat_ptr);
+	metalToDevice<<<1, 1 >>>(albedo, fuzz, mat_idx, gpu_gpu_mat_ptr, arr_ptr);
 	HANDLE_ERROR(cudaMemcpy(&gpu_mat, gpu_gpu_mat_ptr, sizeof(material*), cudaMemcpyDeviceToHost));
 	HANDLE_ERROR(cudaFree(gpu_gpu_mat_ptr));
 }
 
-void dielectric::toDevice() {
+void dielectric::toDevice(int mat_idx, mat_union* arr_ptr) {
 	material** gpu_gpu_mat_ptr;
 	HANDLE_ERROR(cudaMalloc((void**)&gpu_gpu_mat_ptr, sizeof(material*)));
-	dielectricToDevice<<<1, 1 >>>(ior, albedo, gpu_gpu_mat_ptr);
+	dielectricToDevice<<<1, 1 >>>(ior, albedo, mat_idx, gpu_gpu_mat_ptr, arr_ptr);
 	HANDLE_ERROR(cudaMemcpy(&gpu_mat, gpu_gpu_mat_ptr, sizeof(material*), cudaMemcpyDeviceToHost));
 	HANDLE_ERROR(cudaFree(gpu_gpu_mat_ptr));
 }

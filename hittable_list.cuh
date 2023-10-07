@@ -5,13 +5,16 @@
 #include <memory>
 #include <cuda_runtime.h>
 
-#include "sphere.cuh"
 #include "hittable.cuh"
+#include "data_union.cuh"
+#include "mat_union.cuh"
 
 #define SOME_THREAD_ONLY(whatevs) {if ((threadIdx.x < 100) && (threadIdx.y < 100) && (blockIdx.x < 100) && (blockIdx.y < 100)) {whatevs;}}
 
-
 using std::vector;
+
+__constant__ __device__ data_union data_arr[600];
+__constant__ __device__ mat_union mat_arr[600];
 
 class hittable_list : public hittable {
 
@@ -20,7 +23,6 @@ class hittable_list : public hittable {
 
 		void add(hittable* object) { 
 			objects[num_obj] = object; num_obj++;
-			bbox = aabb(bbox, object->bounding_box());
 		}
 
 		void clear() { 
@@ -37,11 +39,16 @@ class hittable_list : public hittable {
 
 		int moveAllToDevice() {
 			HANDLE_ERROR(cudaMalloc((void**)&dev_objects, num_obj * sizeof(hittable*)));
-			int size = toDevice(dev_objects, 0);
+			data_union* ptr;
+			mat_union* mat_ptr;
+			HANDLE_ERROR(cudaGetSymbolAddress((void**)&ptr, data_arr));
+			HANDLE_ERROR(cudaGetSymbolAddress((void**)&mat_ptr, mat_arr));
+			int mat_idx = 0;
+			int size = toDevice(dev_objects, 0, mat_idx, ptr, mat_ptr);
 			return size;
 		}
 
-		int toDevice(hittable** list, int idx) override;
+		int toDevice(hittable** list, int idx, int& mat_idx, data_union* ptr, mat_union* mat_ptr) override;
 
 		__device__ bool hit(const ray& r, float t_min, float t_max, hit_record& rec) const override {
 			hit_record temp_rec;
@@ -59,35 +66,20 @@ class hittable_list : public hittable {
 			return hit_anything;
 		}
 
-		aabb bounding_box() const override { return bbox; }
-
 	public:
 		hittable** objects;
 		hittable** dev_objects;
 		int num_obj;
-		aabb bbox;
 
-		hittable_list* gpu_hittable_list;
+		//hittable_list* gpu_hittable_list;
 };
 
-__global__ void hittableListToDevice(hittable_list cpu_list, hittable_list** ptr) {
-	hittable_list* gpu_list = new hittable_list();
-	gpu_list->num_obj = cpu_list.num_obj;
-	gpu_list->dev_objects = cpu_list.dev_objects;
-	gpu_list->bbox = cpu_list.bbox;
-	*ptr = gpu_list;
-}
-
-int hittable_list::toDevice(hittable** list, int idx)  {
+int hittable_list::toDevice(hittable** list, int idx, int& mat_idx, data_union* ptr, mat_union* mat_ptr)  {
 	int new_idx = idx;
 	for (int i = 0; i < num_obj; i++) {
-		new_idx = objects[new_idx]->toDevice(list, new_idx);
+		new_idx = objects[new_idx]->toDevice(list, new_idx, mat_idx, ptr, mat_ptr);
 	}
-	hittable_list** gpu_gpu_lst_ptr;
-	HANDLE_ERROR(cudaMalloc((void**)&gpu_gpu_lst_ptr, sizeof(hittable_list*)));
-	hittableListToDevice<<<1, 1 >>>(*this, gpu_gpu_lst_ptr);
-	HANDLE_ERROR(cudaMemcpy(&gpu_hittable_list, gpu_gpu_lst_ptr, sizeof(hittable_list*), cudaMemcpyDeviceToHost));
-	HANDLE_ERROR(cudaFree(gpu_gpu_lst_ptr));
+
 	return new_idx;
 }
 
