@@ -81,7 +81,7 @@ class sphere : public hittable {
 			HANDLE_ERROR(cudaFree(gpu_obj));
 		}
 
-		__device__ aabb bounding_box() const override { return bbox; }
+		__device__ __host__ aabb bounding_box() const override { return bbox; }
 };
 
 __global__ void sphereToDevice(sphere cpu_sphere, hittable** list, int idx, hittable** ptr) {

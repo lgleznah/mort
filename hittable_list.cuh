@@ -59,7 +59,7 @@ class hittable_list : public hittable {
 			return hit_anything;
 		}
 
-		aabb bounding_box() const override { return bbox; }
+		__device__ __host__ aabb bounding_box() const override { return bbox; }
 
 	public:
 		hittable** objects;

@@ -15,7 +15,7 @@ class hittable {
 		virtual int toDevice(hittable** list, int idx) = 0;
 		virtual void freeFromDevice() const = 0;
 
-		virtual __device__ aabb bounding_box() const = 0;
+		virtual __device__ __host__ aabb bounding_box() const = 0;
 
 	public:
 		hittable* gpu_obj;
