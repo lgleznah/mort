@@ -112,7 +112,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="camera.cuh" />
-    <ClInclude Include="data_union.cuh" />
     <ClInclude Include="hittable.cuh" />
     <ClInclude Include="hit_record.cuh" />
     <ClInclude Include="hittable_list.cuh" />
@@ -125,7 +124,6 @@
     <ClInclude Include="include\gpu_anim.h" />
     <ClInclude Include="interval.cuh" />
     <ClInclude Include="materials.cuh" />
-    <ClInclude Include="mat_union.cuh" />
     <ClInclude Include="ray.cuh" />
     <ClInclude Include="rng.cuh" />
     <ClInclude Include="sphere.cuh" />

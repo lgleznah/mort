@@ -40,8 +40,8 @@ struct DataBlock {
 	hittable_list data;
 };
 
-__global__ void renderKernel(Camera camera, uchar4* ptr, curandState* states, int numObjects) {
-	camera.render(ptr, states, numObjects);
+__global__ void renderKernel(Camera camera, uchar4* ptr, curandState* states, hittable_list world) {
+	camera.render(ptr, states, world);
 }
 
 void input(DataBlock* d) {
@@ -101,7 +101,7 @@ void update(uchar4* output_bitmap, DataBlock* d, int ticks) {
 	dim3 threads(16, 16);
 
 	//// Render
-	renderKernel <<<blocks, threads >>> (d->cam, output_bitmap, d->rand_states, d->data.num_obj);
+	renderKernel <<<blocks, threads >>> (d->cam, output_bitmap, d->rand_states, d->data);
 	//gpuErrchk(cudaPeekAtLastError());
 	//gpuErrchk(cudaDeviceSynchronize());
 
@@ -146,8 +146,9 @@ int main(void) {
 	// Object setup
 	hittable_list data;
 
-	lambertian* ground_material = new lambertian(color(0.5, 0.5, 0.5));
-	data.add(new sphere(point3(0, -1000, 0), 1000, ground_material));
+	lambertian ground_material(color(0.5, 0.5, 0.5));
+	data.add(ground_material);
+	data.add(sphere(point3(0, -1000, 0), 1000, ground_material.getType(), ground_material.getIdx()));
 
 	for (int a = -11; a < 11; a++) { 
 		for (int b = -11; b < 11; b++) {
@@ -159,35 +160,41 @@ int main(void) {
 					// diffuse
 					auto albedo = color::random() * color::random();
 					auto center2 = center + vec3(0, random_float(0.0, 0.5), 0);
-					lambertian* material = new lambertian(albedo);
-					data.add(new sphere(center, center2, 0.2, material));
+					lambertian material(albedo);
+					data.add(material);
+					data.add(sphere(center, center2, 0.2, material.getType(), material.getIdx()));
 				}
 				else if (choose_mat < 0.95) {
 					// metal
 					auto albedo = color::random(0.5, 1);
 					auto fuzz = random_float(0.0, 0.5);
-					metal* material = new metal(albedo, fuzz);
-					data.add(new sphere(center, 0.2, material));
+					metal material(albedo, fuzz);
+					data.add(material);
+					data.add(sphere(center, 0.2, material.getType(), material.getIdx()));
 				}
 				else {
 					// glass
-					dielectric* material = new dielectric(1.5);
-					data.add(new sphere(center, 0.2, material));
+					dielectric material(1.5);
+					data.add(material);
+					data.add(sphere(center, 0.2, material.getType(), material.getIdx()));
 				}
 			}
 		}
 	}
 
-	dielectric* material1 = new dielectric(1.5);
-	data.add(new sphere(point3(0, 1, 0), 1.0, material1));
+	dielectric material1(1.5);
+	data.add(material1);
+	data.add(sphere(point3(0, 1, 0), 1.0, material1.getType(), material1.getIdx()));
 
-	lambertian* material2 = new lambertian(color(0.4, 0.2, 0.1));
-	data.add(new sphere(point3(-4, 1, 0), 1.0, material2));
+	lambertian material2(color(0.4, 0.2, 0.1));
+	data.add(material2);
+	data.add(sphere(point3(-4, 1, 0), 1.0, material2.getType(), material2.getIdx()));
 
-	metal* material3 = new metal(color(0.7, 0.6, 0.5), 0.0);
-	data.add(new sphere(point3(4, 1, 0), 1.0, material3));
+	metal material3(color(0.7, 0.6, 0.5), 0.0);
+	data.add(material3);
+	data.add(sphere(point3(4, 1, 0), 1.0, material3.getType(), material3.getIdx()));
 
-	data.moveAllToDevice();
+	data.toDevice();
 
 	//// CUDA setup
 	int width_blocks = ceil((float)cam.image_width / 16.0);
