@@ -1,4 +1,4 @@
-#ifndef HITTABLE_H
+/*#ifndef HITTABLE_H
 #define HITTABLE_H
 
 #include <cuda_runtime.h>
@@ -21,4 +21,4 @@ class hittable {
 		hittable* gpu_obj;
 };
 
-#endif
+#endif*/
