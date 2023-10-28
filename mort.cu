@@ -146,7 +146,13 @@ int main(void) {
 	// Object setup
 	hittable_list data;
 
-	lambertian ground_material(color(0.5, 0.5, 0.5));
+	solid_color checker1(color(.2, .3, .1));
+	solid_color checker2(color(.9, .9, .9));
+	checker_texture checker(0.32, checker1.getType(), checker1.getIdx(), checker2.getType(), checker2.getIdx());
+	lambertian ground_material(checker.getType(), checker.getIdx());
+	data.add(checker1);
+	data.add(checker2);
+	data.add(checker);
 	data.add(ground_material);
 	data.add(sphere(point3(0, -1000, 0), 1000, ground_material.getType(), ground_material.getIdx()));
 
@@ -160,7 +166,9 @@ int main(void) {
 					// diffuse
 					auto albedo = color::random() * color::random();
 					auto center2 = center + vec3(0, random_float(0.0, 0.5), 0);
-					lambertian material(albedo);
+					solid_color color(albedo);
+					lambertian material(color.getType(), color.getIdx());
+					data.add(color);
 					data.add(material);
 					data.add(sphere(center, center2, 0.2, material.getType(), material.getIdx()));
 				}
@@ -186,7 +194,9 @@ int main(void) {
 	data.add(material1);
 	data.add(sphere(point3(0, 1, 0), 1.0, material1.getType(), material1.getIdx()));
 
-	lambertian material2(color(0.4, 0.2, 0.1));
+	solid_color sph_color(color(0.4, 0.2, 0.1));
+	lambertian material2(sph_color.getType(), sph_color.getIdx());
+	data.add(sph_color);
 	data.add(material2);
 	data.add(sphere(point3(-4, 1, 0), 1.0, material2.getType(), material2.getIdx()));
 

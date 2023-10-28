@@ -7,16 +7,14 @@
 
 #include "sphere.cuh"
 #include "materials.cuh"
+#include "texture.cuh"
 
 #define SOME_THREAD_ONLY(whatevs) {if ((threadIdx.x < 100) && (threadIdx.y < 100) && (blockIdx.x < 100) && (blockIdx.y < 100)) {whatevs;}}
 
 using std::vector;
 
-//__constant__  data_union data_arr[600];
-//__constant__  mat_union mat_arr[600];
-
 #define NUM_SPHERES 500
-__constant__ sphere dev_spheres[500];
+__constant__ sphere dev_spheres[NUM_SPHERES];
 
 #define NUM_LAMBERTIANS 500
 __constant__ lambertian dev_lambertians[NUM_LAMBERTIANS];
@@ -31,12 +29,14 @@ struct hittable_list {
 
 	public:
 		__host__  hittable_list() { 
-			num_spheres = num_lambertians = num_metals = num_dielectrics = 0;
+			num_spheres = num_lambertians = num_metals = num_dielectrics = num_solid_colors = num_checker_textures = 0;
 
 			spheres = (sphere*) malloc(NUM_SPHERES * sizeof(sphere));
 			lambertians = (lambertian*) malloc(NUM_LAMBERTIANS * sizeof(lambertian));
 			metals = (metal*) malloc(NUM_METALS * sizeof(metal));
 			dielectrics = (dielectric*) malloc(NUM_DIELECTRICS * sizeof(dielectric));
+			solid_colors = (solid_color*)malloc(NUM_SOLIDS * sizeof(solid_color));
+			checker_textures = (checker_texture*) malloc(NUM_CHECKERS * sizeof(checker_texture));
 		}
 
 		void add(sphere object) { 
@@ -55,12 +55,22 @@ struct hittable_list {
 			dielectrics[num_dielectrics++] = mat;
 		}
 
+		void add(solid_color tex) {
+			solid_colors[num_solid_colors++] = tex;
+		}
+
+		void add(checker_texture tex) {
+			checker_textures[num_checker_textures++] = tex;
+		}
+
 		void clear() { 
 			free(spheres);
 			free(lambertians);
 			free(metals);
 			free(dielectrics);
-			num_spheres = num_lambertians = num_metals = num_dielectrics = 0;
+			free(solid_colors);
+			free(checker_textures);
+			num_spheres = num_lambertians = num_metals = num_dielectrics = num_solid_colors = num_checker_textures = 0;
 		}
 
 		int toDevice() {
@@ -68,6 +78,7 @@ struct hittable_list {
 			HANDLE_ERROR(cudaMemcpyToSymbol(dev_lambertians, lambertians, num_lambertians * sizeof(lambertian), 0, cudaMemcpyHostToDevice));
 			HANDLE_ERROR(cudaMemcpyToSymbol(dev_metals, metals, num_metals * sizeof(metal), 0, cudaMemcpyHostToDevice));
 			HANDLE_ERROR(cudaMemcpyToSymbol(dev_dielectrics, dielectrics, num_dielectrics * sizeof(dielectric), 0, cudaMemcpyHostToDevice));
+			texturesToDevice(solid_colors, checker_textures);
 		}
 
 		__device__ bool hit(const ray& r, float t_min, float t_max, hit_record& rec) const {
@@ -114,6 +125,12 @@ struct hittable_list {
 
 		dielectric* dielectrics;
 		int num_dielectrics;
+
+		solid_color* solid_colors;
+		int num_solid_colors;
+
+		checker_texture* checker_textures;
+		int num_checker_textures;
 
 		//hittable_list* gpu_hittable_list;
 };
