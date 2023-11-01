@@ -13,6 +13,7 @@ struct hit_record {
 	int mat_idx;
 	int mat_type;
 	float t;
+	float u, v;
 	bool front_face;
 
 	__device__ inline void set_face_normal(const ray& r, const vec3& outward_normal) {

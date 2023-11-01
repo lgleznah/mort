@@ -124,33 +124,18 @@ void anim_exit(DataBlock* d) {
 	HANDLE_ERROR(cudaEventDestroy(d->stop));
 }
 
-int main(void) {
-	cudaEvent_t start, stop;
-
-	// Camera settings
-	Camera cam;
-	cam.aspect_ratio = 16.0 / 9.0;
-	cam.image_width = 1200;
-	cam.samples_per_pixel = 5;
-	cam.bounce_limit = 5;
-
-	cam.vfov = 20;
-	cam.lookfrom = point3(13, 2, 3);
-	cam.lookat = point3(0, 0, 0);
-	cam.vup = vec3(0, 1, 0);
-
-	cam.defocus_angle = 0.0;
-	cam.focus_dist = 10.0;
-	cam.initialize();
-
-	// Object setup
-	hittable_list data;
-
-	lambertian ground_material(color(0.5, 0.5, 0.5));
+void random_spheres(hittable_list& data, Camera& cam) {
+	solid_color checker1(color(.2, .3, .1));
+	solid_color checker2(color(.9, .9, .9));
+	checker_texture checker(0.32, checker1.getType(), checker1.getIdx(), checker2.getType(), checker2.getIdx());
+	lambertian ground_material(checker.getType(), checker.getIdx());
+	data.add(checker1);
+	data.add(checker2);
+	data.add(checker);
 	data.add(ground_material);
 	data.add(sphere(point3(0, -1000, 0), 1000, ground_material.getType(), ground_material.getIdx()));
 
-	for (int a = -11; a < 11; a++) { 
+	for (int a = -11; a < 11; a++) {
 		for (int b = -11; b < 11; b++) {
 			auto choose_mat = random_float();
 			point3 center(a + 0.9 * random_float(), 0.2, b + 0.9 * random_float());
@@ -160,7 +145,9 @@ int main(void) {
 					// diffuse
 					auto albedo = color::random() * color::random();
 					auto center2 = center + vec3(0, random_float(0.0, 0.5), 0);
-					lambertian material(albedo);
+					solid_color color(albedo);
+					lambertian material(color.getType(), color.getIdx());
+					data.add(color);
 					data.add(material);
 					data.add(sphere(center, center2, 0.2, material.getType(), material.getIdx()));
 				}
@@ -186,7 +173,9 @@ int main(void) {
 	data.add(material1);
 	data.add(sphere(point3(0, 1, 0), 1.0, material1.getType(), material1.getIdx()));
 
-	lambertian material2(color(0.4, 0.2, 0.1));
+	solid_color sph_color(color(0.4, 0.2, 0.1));
+	lambertian material2(sph_color.getType(), sph_color.getIdx());
+	data.add(sph_color);
 	data.add(material2);
 	data.add(sphere(point3(-4, 1, 0), 1.0, material2.getType(), material2.getIdx()));
 
@@ -194,6 +183,68 @@ int main(void) {
 	data.add(material3);
 	data.add(sphere(point3(4, 1, 0), 1.0, material3.getType(), material3.getIdx()));
 
+	cam.aspect_ratio = 16.0 / 9.0;
+	cam.image_width = 1200;
+	cam.samples_per_pixel = 5;
+	cam.bounce_limit = 5;
+
+	cam.vfov = 20;
+	cam.lookfrom = point3(13, 2, 3);
+	cam.lookat = point3(0, 0, 0);
+	cam.vup = vec3(0, 1, 0);
+
+	cam.defocus_angle = 0.0;
+	cam.focus_dist = 10.0;
+
+	return;
+}
+
+void two_spheres(hittable_list& data, Camera& cam) {
+	solid_color checker1(color(.2, .3, .1));
+	solid_color checker2(color(.9, .9, .9));
+	checker_texture checker(0.32, checker1.getType(), checker1.getIdx(), checker2.getType(), checker2.getIdx());
+	lambertian mat(checker.getType(), checker.getIdx());
+	data.add(checker1);
+	data.add(checker2);
+	data.add(checker);
+	data.add(mat);
+	data.add(sphere(point3(0, -10, 0), 10, mat.getType(), mat.getIdx()));
+	data.add(sphere(point3(0, 10, 0), 10, mat.getType(), mat.getIdx()));
+
+	cam.aspect_ratio = 16.0 / 9.0;
+	cam.image_width = 1200;
+	cam.samples_per_pixel = 20;
+	cam.bounce_limit = 50;
+
+	cam.vfov = 20;
+	cam.lookfrom = point3(13, 2, 3);
+	cam.lookat = point3(0, 0, 0);
+	cam.vup = vec3(0, 1, 0);
+
+	cam.defocus_angle = 0;
+
+}
+
+int main(void) {
+	cudaEvent_t start, stop;
+
+	// Scene setup
+	Camera cam;
+	hittable_list data;
+
+	int scene_idx = 2;
+
+	switch(scene_idx) {
+		case 1:
+			random_spheres(data, cam);
+			break;
+
+		case 2:
+			two_spheres(data, cam);
+			break;
+	}
+
+	cam.initialize();
 	data.toDevice();
 
 	//// CUDA setup
@@ -231,3 +282,49 @@ int main(void) {
 
 	bitmap.anim_and_exit((void (*)(uchar4*, void*, int))update, (void (*)(void*))anim_exit);
 }
+/*
+#include <stdio.h>
+#include <stdint.h>
+
+typedef uint8_t mt;  // use an integer type
+
+__global__ void kernel(cudaTextureObject_t tex)
+{
+	int x = threadIdx.x;
+	int y = threadIdx.y;
+	mt val = tex2D<mt>(tex, x, y);
+	printf("%d, ", val);
+}
+
+int main(int argc, char** argv)
+{
+	cudaDeviceProp prop;
+	cudaGetDeviceProperties(&prop, 0);
+	printf("texturePitchAlignment: %lu\n", prop.texturePitchAlignment);
+	cudaTextureObject_t tex;
+	const int num_rows = 4;
+	const int num_cols = prop.texturePitchAlignment * 1; // should be able to use a different multiplier here
+	const int ts = num_cols * num_rows;
+	const int ds = ts * sizeof(mt);
+	mt* dataIn = (mt*) malloc(ds * sizeof(mt));
+	for (int i = 0; i < ts; i++) dataIn[i] = i;
+	mt* dataDev = 0;
+	cudaMalloc((void**)&dataDev, ds);
+	cudaMemcpy(dataDev, dataIn, ds, cudaMemcpyHostToDevice);
+	struct cudaResourceDesc resDesc;
+	memset(&resDesc, 0, sizeof(resDesc));
+	resDesc.resType = cudaResourceTypePitch2D;
+	resDesc.res.pitch2D.devPtr = dataDev;
+	resDesc.res.pitch2D.width = num_cols;
+	resDesc.res.pitch2D.height = num_rows;
+	resDesc.res.pitch2D.desc = cudaCreateChannelDesc<mt>();
+	resDesc.res.pitch2D.pitchInBytes = num_cols * sizeof(mt);
+	struct cudaTextureDesc texDesc;
+	memset(&texDesc, 0, sizeof(texDesc));
+	cudaCreateTextureObject(&tex, &resDesc, &texDesc, NULL);
+	dim3 threads(4, 4);
+	kernel << <1, threads >> > (tex);
+	cudaDeviceSynchronize();
+	printf("\n");
+	return 0;
+}*/

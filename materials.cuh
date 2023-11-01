@@ -7,6 +7,7 @@
 #include "vec3.cuh"
 #include "hit_record.cuh"
 #include "ray.cuh"
+#include "texture.cuh"
 
 #define MAT_LAMBERTIAN 1
 #define MAT_METAL 2
@@ -14,18 +15,18 @@
 
 struct lambertian {
 	public:
-		color albedo;
+		int texType, texIdx;
 
 		int idx;
 		static int global_idx;
 
 		__host__ lambertian() {}
-		__host__ lambertian(const color& a): albedo(a) { idx = global_idx++; }
+		__host__ lambertian(int _texType, int _texIdx): texType(_texType), texIdx(_texIdx) { idx = global_idx++; }
 
 		__device__ bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, curandState* states, int idx) const {
 			auto scatter_direction = rec.normal + random_in_unit_sphere(states, idx);
 			scattered = ray(rec.p, scatter_direction, r_in.time());
-			attenuation = albedo;
+			attenuation = valueDispatch(texType, texIdx, rec.u, rec.v, rec.p);
 			return true;
 		}
 
