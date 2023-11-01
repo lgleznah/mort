@@ -73,7 +73,7 @@ struct hittable_list {
 			num_spheres = num_lambertians = num_metals = num_dielectrics = num_solid_colors = num_checker_textures = 0;
 		}
 
-		int toDevice() {
+		void toDevice() {
 			HANDLE_ERROR(cudaMemcpyToSymbol(dev_spheres, spheres, num_spheres * sizeof(sphere), 0, cudaMemcpyHostToDevice));
 			HANDLE_ERROR(cudaMemcpyToSymbol(dev_lambertians, lambertians, num_lambertians * sizeof(lambertian), 0, cudaMemcpyHostToDevice));
 			HANDLE_ERROR(cudaMemcpyToSymbol(dev_metals, metals, num_metals * sizeof(metal), 0, cudaMemcpyHostToDevice));

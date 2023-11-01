@@ -211,6 +211,8 @@ void two_spheres(hittable_list& data, Camera& cam) {
 	data.add(sphere(point3(0, -10, 0), 10, mat.getType(), mat.getIdx()));
 	data.add(sphere(point3(0, 10, 0), 10, mat.getType(), mat.getIdx()));
 
+	image_texture earth("imgs/earthmap.jpg");
+
 	cam.aspect_ratio = 16.0 / 9.0;
 	cam.image_width = 1200;
 	cam.samples_per_pixel = 20;
