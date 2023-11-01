@@ -1,6 +1,8 @@
 #ifndef SPHERE_H
 #define SPHERE_H
 
+#include <math_constants.h>
+
 #include "hit_record.cuh"
 #include "vec3.cuh"
 #include "hittable.cuh"
@@ -59,18 +61,29 @@ struct sphere {
 			rec.p = r.at(rec.t);
 			const vec3 outward_normal = (rec.p - center(r.time())) / radius;
 			rec.set_face_normal(r, outward_normal);
+			compute_uv(outward_normal, rec.u, rec.v);
 			rec.mat_type = mat_type;
 			rec.mat_idx = mat_idx;
 
 			return true;
 		}
 	
-		__device__ point3 center(float time) const {
+		__device__ 
+		point3 center(float time) const {
 			if (!moves) {
 				return center1;
 			}
 
 			return center1 + time * center_vec;
+		}
+
+		__device__
+		void compute_uv(const point3& p, float& u, float& v) const {
+			float theta = acos(-p.y());
+			float phi = atan2(-p.z(), p.x()) + CUDART_PI_F;
+
+			u = phi / (2 * CUDART_PI_F);
+			v = theta / CUDART_PI_F;
 		}
 };
 

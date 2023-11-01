@@ -26,7 +26,7 @@ struct lambertian {
 		__device__ bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, curandState* states, int idx) const {
 			auto scatter_direction = rec.normal + random_in_unit_sphere(states, idx);
 			scattered = ray(rec.p, scatter_direction, r_in.time());
-			attenuation = valueDispatch(texType, texIdx, 0.0, 0.0, rec.p);
+			attenuation = valueDispatch(texType, texIdx, rec.u, rec.v, rec.p);
 			return true;
 		}
 
