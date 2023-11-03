@@ -61,6 +61,11 @@ struct sphere {
 			rec.p = r.at(rec.t);
 			const vec3 outward_normal = (rec.p - center(r.time())) / radius;
 			rec.set_face_normal(r, outward_normal);
+			/*if (outward_normal.x() < -0.9 && outward_normal.y() > -0.1 && outward_normal.z() > -0.1) {
+				float u, v;
+				compute_uv(outward_normal, u, v);
+				printf("(%f, %f, %f) -> (%f, %f)\n", outward_normal.x(), outward_normal.y(), outward_normal.z(), u, v);
+			}*/
 			compute_uv(outward_normal, rec.u, rec.v);
 			rec.mat_type = mat_type;
 			rec.mat_idx = mat_idx;
@@ -77,13 +82,15 @@ struct sphere {
 			return center1 + time * center_vec;
 		}
 
+		// TODO: using CUDART_PI_F somehow causes u and v to get the SAME value. WAAAAAAAAAAT
+		// Apparently, using the "f" suffix at the end of pi somehow causes this behaviour
 		__device__
 		void compute_uv(const point3& p, float& u, float& v) const {
 			float theta = acos(-p.y());
-			float phi = atan2(-p.z(), p.x()) + CUDART_PI_F;
+			float phi = atan2(-p.z(), p.x()) + 3.141592565;
 
-			u = phi / (2 * CUDART_PI_F);
-			v = theta / CUDART_PI_F;
+			u = phi / (2.0 * 3.141592565);
+			v = theta / 3.141592565;
 		}
 };
 

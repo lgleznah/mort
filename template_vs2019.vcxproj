@@ -115,6 +115,7 @@
     <ClInclude Include="hittable.cuh" />
     <ClInclude Include="hit_record.cuh" />
     <ClInclude Include="hittable_list.cuh" />
+    <ClInclude Include="img_loader.h" />
     <ClInclude Include="include\book.h" />
     <ClInclude Include="include\cpu_anim.h" />
     <ClInclude Include="include\cpu_bitmap.h" />
