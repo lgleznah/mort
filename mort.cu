@@ -211,8 +211,6 @@ void two_spheres(hittable_list& data, Camera& cam) {
 	data.add(sphere(point3(0, -10, 0), 10, mat.getType(), mat.getIdx()));
 	data.add(sphere(point3(0, 10, 0), 10, mat.getType(), mat.getIdx()));
 
-	image_texture earth("imgs/earthmap.jpg");
-
 	cam.aspect_ratio = 16.0 / 9.0;
 	cam.image_width = 1200;
 	cam.samples_per_pixel = 20;
@@ -224,7 +222,27 @@ void two_spheres(hittable_list& data, Camera& cam) {
 	cam.vup = vec3(0, 1, 0);
 
 	cam.defocus_angle = 0;
+}
 
+void earth(hittable_list& data, Camera& cam) {
+	image_texture earth_texture("imgs/earthmap.jpg");
+	lambertian earth_surface(earth_texture.getType(), earth_texture.getIdx());
+	sphere globe(point3(0,0,0), 2, earth_surface.getType(), earth_surface.getIdx());
+	data.add(earth_texture);
+	data.add(earth_surface);
+	data.add(globe);
+
+	cam.aspect_ratio = 16.0 / 9.0;
+	cam.image_width = 1200;
+	cam.samples_per_pixel = 100;
+	cam.bounce_limit = 50;
+
+	cam.vfov = 20;
+	cam.lookfrom = point3(0, 0, 12);
+	cam.lookat = point3(0, 0, 0);
+	cam.vup = vec3(0, 1, 0);
+
+	cam.defocus_angle = 0;
 }
 
 int main(void) {
@@ -234,7 +252,7 @@ int main(void) {
 	Camera cam;
 	hittable_list data;
 
-	int scene_idx = 2;
+	int scene_idx = 3;
 
 	switch(scene_idx) {
 		case 1:
@@ -243,6 +261,10 @@ int main(void) {
 
 		case 2:
 			two_spheres(data, cam);
+			break;
+
+		case 3:
+			earth(data, cam);
 			break;
 	}
 

@@ -5,6 +5,7 @@
 
 #include "vec3.cuh"
 #include "img_loader.h"
+#include "interval.cuh"
 
 #define TEXTURE_SOLID 1
 #define TEXTURE_CHECKER 2
@@ -78,8 +79,9 @@ struct image_texture {
 			idx = global_idx++;
 
 			img_loader img(filename);
+			width = img.width();
+			height = img.height();
 			image_into_device(img);
-			printf("%d %d %d", img.pixel_data(90,104)[0], img.pixel_data(90, 104)[1], img.pixel_data(90, 104)[2]);
 		}
 
 		// TODO: passing by value somehow corrupts the data array in img
@@ -123,11 +125,31 @@ struct image_texture {
 			free(gpu_data);
 		}
 
+		__device__
+		color value(double u, double v, const point3& p) const {
+			if (height <= 0) return color(0, 1, 1);
+
+			u = interval(0, 1).clamp(u);
+			v = 1.0 - interval(0,1).clamp(v);
+
+			int i = (int)(u * width);
+			int j = (int)(v * height);
+
+			int r = tex2D<unsigned char>(gpu_tex, i * 3 + 0, j);
+			int g = tex2D<unsigned char>(gpu_tex, i * 3 + 1, j);
+			int b = tex2D<unsigned char>(gpu_tex, i * 3 + 2, j);
+
+			float color_scale = 1.0 / 255.0;
+			//return color(0.0, 0.0, p.z());
+			return color(color_scale*r, color_scale*g, color_scale*b);
+		}
+
 		int getType() const { return TEXTURE_IMAGE; }
 		int getIdx() const { return idx; }
 
 	private:
 		cudaTextureObject_t gpu_tex;
+		int width, height;
 		int idx;
 		static int global_idx;
 };
@@ -146,9 +168,10 @@ __constant__ checker_texture dev_checkers[NUM_CHECKERS];
 #define NUM_IMAGES 500
 __constant__ image_texture dev_images[NUM_IMAGES];
 
-void texturesToDevice(solid_color* solids, checker_texture* checkers) {
+void texturesToDevice(solid_color* solids, checker_texture* checkers, image_texture* images) {
 	HANDLE_ERROR(cudaMemcpyToSymbol(dev_solid_colors, solids, NUM_SOLIDS * sizeof(solid_color), 0, cudaMemcpyHostToDevice));
 	HANDLE_ERROR(cudaMemcpyToSymbol(dev_checkers, checkers, NUM_CHECKERS * sizeof(checker_texture), 0, cudaMemcpyHostToDevice));
+	HANDLE_ERROR(cudaMemcpyToSymbol(dev_images, images, NUM_IMAGES * sizeof(image_texture), 0, cudaMemcpyHostToDevice));
 }
 
 __device__
@@ -163,7 +186,7 @@ color valueDispatch(int texType, int texIdx, double u, double v, const point3& p
 			break;
 
 		case TEXTURE_IMAGE:
-			//return dev_images[texIdx].value(u, v, p);
+			return dev_images[texIdx].value(u, v, p);
 			break;
 	}
 }
