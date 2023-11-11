@@ -40,7 +40,7 @@ struct sphere {
 
 		__device__ 
 		bool hit(const ray& r, float t_min, float t_max, hit_record& rec) const {
-			const vec3 oc = r.origin() - center(r.time());
+			const vec3 oc = r.origin() - center1;
 			const auto a = r.direction().length_squared();
 			const auto half_b = dot(oc, r.direction());
 			const auto c = oc.length_squared() - radius * radius;
@@ -59,22 +59,13 @@ struct sphere {
 
 			rec.t = root;
 			rec.p = r.at(rec.t);
-			const vec3 outward_normal = (rec.p - center(r.time())) / radius;
+			const vec3 outward_normal = (rec.p - center1) / radius;
 			rec.set_face_normal(r, outward_normal);
 			compute_uv(outward_normal, rec.u, rec.v);
 			rec.mat_type = mat_type;
 			rec.mat_idx = mat_idx;
 
 			return true;
-		}
-	
-		__device__ 
-		point3 center(float time) const {
-			if (!moves) {
-				return center1;
-			}
-
-			return center1 + time * center_vec;
 		}
 
 		// TODO: using CUDART_PI_F somehow causes u and v to get the SAME value. WAAAAAAAAAAT

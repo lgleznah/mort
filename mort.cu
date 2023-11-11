@@ -124,107 +124,7 @@ void anim_exit(DataBlock* d) {
 	HANDLE_ERROR(cudaEventDestroy(d->stop));
 }
 
-void random_spheres(hittable_list& data, Camera& cam) {
-	solid_color checker1(color(.2, .3, .1));
-	solid_color checker2(color(.9, .9, .9));
-	checker_texture checker(0.32, checker1.getType(), checker1.getIdx(), checker2.getType(), checker2.getIdx());
-	lambertian ground_material(checker.getType(), checker.getIdx());
-	data.add(checker1);
-	data.add(checker2);
-	data.add(checker);
-	data.add(ground_material);
-	data.add(sphere(point3(0, -1000, 0), 1000, ground_material.getType(), ground_material.getIdx()));
-
-	for (int a = -11; a < 11; a++) {
-		for (int b = -11; b < 11; b++) {
-			auto choose_mat = random_float();
-			point3 center(a + 0.9 * random_float(), 0.2, b + 0.9 * random_float());
-
-			if ((center - point3(4, 0.2, 0)).length() > 0.9) {
-				if (choose_mat < 0.8) {
-					// diffuse
-					auto albedo = color::random() * color::random();
-					auto center2 = center + vec3(0, random_float(0.0, 0.5), 0);
-					solid_color color(albedo);
-					lambertian material(color.getType(), color.getIdx());
-					data.add(color);
-					data.add(material);
-					data.add(sphere(center, center2, 0.2, material.getType(), material.getIdx()));
-				}
-				else if (choose_mat < 0.95) {
-					// metal
-					auto albedo = color::random(0.5, 1);
-					auto fuzz = random_float(0.0, 0.5);
-					metal material(albedo, fuzz);
-					data.add(material);
-					data.add(sphere(center, 0.2, material.getType(), material.getIdx()));
-				}
-				else {
-					// glass
-					dielectric material(1.5);
-					data.add(material);
-					data.add(sphere(center, 0.2, material.getType(), material.getIdx()));
-				}
-			}
-		}
-	}
-
-	dielectric material1(1.5);
-	data.add(material1);
-	data.add(sphere(point3(0, 1, 0), 1.0, material1.getType(), material1.getIdx()));
-
-	solid_color sph_color(color(0.4, 0.2, 0.1));
-	lambertian material2(sph_color.getType(), sph_color.getIdx());
-	data.add(sph_color);
-	data.add(material2);
-	data.add(sphere(point3(-4, 1, 0), 1.0, material2.getType(), material2.getIdx()));
-
-	metal material3(color(0.7, 0.6, 0.5), 0.0);
-	data.add(material3);
-	data.add(sphere(point3(4, 1, 0), 1.0, material3.getType(), material3.getIdx()));
-
-	cam.aspect_ratio = 16.0 / 9.0;
-	cam.image_width = 1200;
-	cam.samples_per_pixel = 5;
-	cam.bounce_limit = 5;
-
-	cam.vfov = 20;
-	cam.lookfrom = point3(13, 2, 3);
-	cam.lookat = point3(0, 0, 0);
-	cam.vup = vec3(0, 1, 0);
-
-	cam.defocus_angle = 0.0;
-	cam.focus_dist = 10.0;
-
-	return;
-}
-
-void two_spheres(hittable_list& data, Camera& cam) {
-	solid_color checker1(color(.2, .3, .1));
-	solid_color checker2(color(.9, .9, .9));
-	checker_texture checker(0.32, checker1.getType(), checker1.getIdx(), checker2.getType(), checker2.getIdx());
-	lambertian mat(checker.getType(), checker.getIdx());
-	data.add(checker1);
-	data.add(checker2);
-	data.add(checker);
-	data.add(mat);
-	data.add(sphere(point3(0, -10, 0), 10, mat.getType(), mat.getIdx()));
-	data.add(sphere(point3(0, 10, 0), 10, mat.getType(), mat.getIdx()));
-
-	cam.aspect_ratio = 16.0 / 9.0;
-	cam.image_width = 1200;
-	cam.samples_per_pixel = 20;
-	cam.bounce_limit = 50;
-
-	cam.vfov = 20;
-	cam.lookfrom = point3(13, 2, 3);
-	cam.lookat = point3(0, 0, 0);
-	cam.vup = vec3(0, 1, 0);
-
-	cam.defocus_angle = 0;
-}
-
-void earth(hittable_list& data, Camera& cam) {
+void test_sphere(hittable_list& data, Camera& cam) {
 	image_texture earth_texture("imgs/earthmap.jpg");
 	lambertian earth_surface(earth_texture.getType(), earth_texture.getIdx());
 	sphere globe(point3(0,0,0), 2, earth_surface.getType(), earth_surface.getIdx());
@@ -254,19 +154,7 @@ int main(void) {
 
 	int scene_idx = 3;
 
-	switch(scene_idx) {
-		case 1:
-			random_spheres(data, cam);
-			break;
-
-		case 2:
-			two_spheres(data, cam);
-			break;
-
-		case 3:
-			earth(data, cam);
-			break;
-	}
+	test_sphere(data, cam);
 
 	cam.initialize();
 	data.toDevice();

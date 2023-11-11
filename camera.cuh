@@ -75,34 +75,14 @@ struct Camera {
 
 		color accumulator(1.0, 1.0, 1.0);
 
-		while (iter < bounce_limit) {
-			hit = false;
-			if (world.hit(current_ray, 0.001, INFINITY, rec)) {
-				// If hit, continue recursion after computing scatter color
-				ray scattered;
-				color attenuation;
-				if (world.scatter(current_ray, rec, attenuation, scattered, states, idx)) {
-					accumulator = elementwise_mult(accumulator, attenuation);
-					current_ray = scattered;
-					iter++;
-				}
-				else {
-					accumulator = color(0, 0, 0);
-					break;
-				}
-
+		if (world.hit(current_ray, 0.001, INFINITY, rec)) {
+			// If hit, continue recursion after computing scatter color
+			ray scattered;
+			color attenuation;
+			if (world.scatter(current_ray, rec, attenuation, scattered, states, idx)) {
+				return attenuation;
 			}
-			else {
-				// If no hit, stop recursion here
-				vec3 unit_direction = unit_vector(current_ray.direction());
-				auto t = 0.5 * (unit_direction.y() + 1.0);
-				accumulator = elementwise_mult(accumulator, (1.0 - t) * color(1.0, 1.0, 1.0) + t * color(0.5, 0.7, 1.0));
-				break;
-			}
-		}
 
-		if (iter == bounce_limit) {
-			accumulator = color(0, 0, 0);
 		}
 
 		return accumulator;
