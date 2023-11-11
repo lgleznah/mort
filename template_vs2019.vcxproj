@@ -125,6 +125,7 @@
     <ClInclude Include="include\gpu_anim.h" />
     <ClInclude Include="interval.cuh" />
     <ClInclude Include="materials.cuh" />
+    <ClInclude Include="perlin.cuh" />
     <ClInclude Include="ray.cuh" />
     <ClInclude Include="rng.cuh" />
     <ClInclude Include="sphere.cuh" />

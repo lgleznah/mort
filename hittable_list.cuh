@@ -29,7 +29,7 @@ struct hittable_list {
 
 	public:
 		__host__  hittable_list() { 
-			num_spheres = num_lambertians = num_metals = num_dielectrics = num_solid_colors = num_checker_textures = num_image_textures = 0;
+			num_spheres = num_lambertians = num_metals = num_dielectrics = num_solid_colors = num_checker_textures = num_image_textures = num_noise_textures = 0;
 
 			spheres = (sphere*) malloc(NUM_SPHERES * sizeof(sphere));
 			lambertians = (lambertian*) malloc(NUM_LAMBERTIANS * sizeof(lambertian));
@@ -37,7 +37,8 @@ struct hittable_list {
 			dielectrics = (dielectric*) malloc(NUM_DIELECTRICS * sizeof(dielectric));
 			solid_colors = (solid_color*)malloc(NUM_SOLIDS * sizeof(solid_color));
 			checker_textures = (checker_texture*)malloc(NUM_CHECKERS * sizeof(checker_texture));
-			image_textures = (image_texture*) malloc(NUM_IMAGES * sizeof(image_texture));
+			image_textures = (image_texture*)malloc(NUM_IMAGES * sizeof(image_texture));
+			noise_textures = (noise_texture*) malloc(NUM_NOISE * sizeof(noise_texture));
 		}
 
 		void add(sphere object) { 
@@ -68,6 +69,10 @@ struct hittable_list {
 			image_textures[num_image_textures++] = tex;
 		}
 
+		void add(noise_texture tex) {
+			noise_textures[num_noise_textures++] = tex;
+		}
+
 		void clear() { 
 			free(spheres);
 			free(lambertians);
@@ -76,7 +81,8 @@ struct hittable_list {
 			free(solid_colors);
 			free(checker_textures);
 			free(image_textures);
-			num_spheres = num_lambertians = num_metals = num_dielectrics = num_solid_colors = num_checker_textures = num_image_textures = 0;
+			free(noise_textures);
+			num_spheres = num_lambertians = num_metals = num_dielectrics = num_solid_colors = num_checker_textures = num_image_textures = num_noise_textures = 0;
 		}
 
 		void toDevice() {
@@ -84,7 +90,7 @@ struct hittable_list {
 			HANDLE_ERROR(cudaMemcpyToSymbol(dev_lambertians, lambertians, num_lambertians * sizeof(lambertian), 0, cudaMemcpyHostToDevice));
 			HANDLE_ERROR(cudaMemcpyToSymbol(dev_metals, metals, num_metals * sizeof(metal), 0, cudaMemcpyHostToDevice));
 			HANDLE_ERROR(cudaMemcpyToSymbol(dev_dielectrics, dielectrics, num_dielectrics * sizeof(dielectric), 0, cudaMemcpyHostToDevice));
-			texturesToDevice(solid_colors, checker_textures, image_textures);
+			texturesToDevice(solid_colors, checker_textures, image_textures, noise_textures);
 		}
 
 		__device__ bool hit(const ray& r, float t_min, float t_max, hit_record& rec) const {
@@ -140,6 +146,9 @@ struct hittable_list {
 
 		image_texture* image_textures;
 		int num_image_textures;
+
+		noise_texture* noise_textures;
+		int num_noise_textures;
 };
 
 #endif

@@ -6,10 +6,12 @@
 #include "vec3.cuh"
 #include "img_loader.h"
 #include "interval.cuh"
+#include "perlin.cuh"
 
 #define TEXTURE_SOLID 1
 #define TEXTURE_CHECKER 2
 #define TEXTURE_IMAGE 3
+#define TEXTURE_NOISE 4
 
 color valueDispatch(int texType, int texIdx, double u, double v, const point3& p);
 
@@ -154,9 +156,30 @@ struct image_texture {
 		static int global_idx;
 };
 
+struct noise_texture {
+	public:
+		__host__
+		noise_texture() {}
+		noise_texture(char dummy) { idx = global_idx++; }
+
+		__device__
+		color value(float u, float v, const point3& p) const {
+			return color(1,1,1) * noise.noise(p);
+		}
+
+		int getType() const { return TEXTURE_NOISE; }
+		int getIdx() const { return idx; }
+
+	private:
+		perlin noise;
+		int idx;
+		static int global_idx;
+};
+
 int solid_color::global_idx = 0;
 int checker_texture::global_idx = 0;
 int image_texture::global_idx = 0;
+int noise_texture::global_idx = 0;
 
 
 #define NUM_SOLIDS 500
@@ -168,10 +191,14 @@ __constant__ checker_texture dev_checkers[NUM_CHECKERS];
 #define NUM_IMAGES 500
 __constant__ image_texture dev_images[NUM_IMAGES];
 
-void texturesToDevice(solid_color* solids, checker_texture* checkers, image_texture* images) {
+#define NUM_NOISE 50
+__device__ noise_texture dev_noises[NUM_NOISE];
+
+void texturesToDevice(solid_color* solids, checker_texture* checkers, image_texture* images, noise_texture* noises) {
 	HANDLE_ERROR(cudaMemcpyToSymbol(dev_solid_colors, solids, NUM_SOLIDS * sizeof(solid_color), 0, cudaMemcpyHostToDevice));
 	HANDLE_ERROR(cudaMemcpyToSymbol(dev_checkers, checkers, NUM_CHECKERS * sizeof(checker_texture), 0, cudaMemcpyHostToDevice));
 	HANDLE_ERROR(cudaMemcpyToSymbol(dev_images, images, NUM_IMAGES * sizeof(image_texture), 0, cudaMemcpyHostToDevice));
+	HANDLE_ERROR(cudaMemcpyToSymbol(dev_noises, noises, NUM_NOISE * sizeof(noise_texture), 0, cudaMemcpyHostToDevice));
 }
 
 __device__
@@ -187,6 +214,10 @@ color valueDispatch(int texType, int texIdx, double u, double v, const point3& p
 
 		case TEXTURE_IMAGE:
 			return dev_images[texIdx].value(u, v, p);
+			break;
+
+		case TEXTURE_NOISE:
+			return dev_noises[texIdx].value(u, v, p);
 			break;
 	}
 }
