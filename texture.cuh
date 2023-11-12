@@ -6,14 +6,13 @@
 #include "vec3.cuh"
 #include "img_loader.h"
 #include "interval.cuh"
-#include "perlin.cuh"
 
 #define TEXTURE_SOLID 1
 #define TEXTURE_CHECKER 2
 #define TEXTURE_IMAGE 3
 #define TEXTURE_NOISE 4
 
-color valueDispatch(int texType, int texIdx, double u, double v, const point3& p);
+color valueDispatch(int texType, int texIdx, float u, float v, const point3& p);
 
 struct solid_color {
 	public:
@@ -51,7 +50,7 @@ struct checker_texture {
 		}
 
 		__device__
-		color value(double u, double v, const point3& p) const {
+		color value(float u, float v, const point3& p) const {
 			int xInt = (int)(floorf(inv_scale * p.x()));
 			int yInt = (int)(floorf(inv_scale * p.y()));
 			int zInt = (int)(floorf(inv_scale * p.z()));
@@ -128,7 +127,7 @@ struct image_texture {
 		}
 
 		__device__
-		color value(double u, double v, const point3& p) const {
+		color value(float u, float v, const point3& p) const {
 			if (height <= 0) return color(0, 1, 1);
 
 			u = interval(0, 1).clamp(u);
@@ -156,24 +155,115 @@ struct image_texture {
 		static int global_idx;
 };
 
+#define POINT_COUNT 256
+
 struct noise_texture {
 	public:
-		__host__
 		noise_texture() {}
-		noise_texture(char dummy) { idx = global_idx++; }
+
+		noise_texture(float sc): scale(sc) {
+			for (int i = 0; i < POINT_COUNT; ++i) {
+				ranvec[i] = unit_vector(vec3(random_float(-1, 1), random_float(-1, 1), random_float(-1, 1)));
+			}
+
+			perlin_generate_perm(perm_x);
+			perlin_generate_perm(perm_y);
+			perlin_generate_perm(perm_z);
+		}
+
+		__device__
+		float noise(const point3& p) const {
+			float u = p.x() - floorf(p.x());
+			float v = p.y() - floorf(p.y());
+			float w = p.z() - floorf(p.z());
+			u = u * u * (3 - 2 * u);
+			v = v * v * (3 - 2 * v);
+			w = w * w * (3 - 2 * w);
+
+			int i = (int)(floorf(p.x()));
+			int j = (int)(floorf(p.y()));
+			int k = (int)(floorf(p.z()));
+			vec3 c[2][2][2];
+
+			for (int di = 0; di < 2; di++)
+				for (int dj = 0; dj < 2; dj++)
+					for (int dk = 0; dk < 2; dk++) {
+						int idx = perm_x[(i + di) & 255] ^ perm_y[(j + dj) & 255] ^ perm_z[(k + dk) & 255];
+						c[di][dj][dk] = ranvec[idx];
+					}
+
+			return perlin_interp(c, u, v, w);
+		}
 
 		__device__
 		color value(float u, float v, const point3& p) const {
-			return color(1,1,1) * noise.noise(p);
+			vec3 s = scale * p;
+			return color(1,1,1) * 0.5 * (1 + sin(s.z() + 10.0 * turb(s)));
 		}
 
 		int getType() const { return TEXTURE_NOISE; }
 		int getIdx() const { return idx; }
 
 	private:
-		perlin noise;
+		vec3 ranvec[POINT_COUNT];
+		int perm_x[POINT_COUNT];
+		int perm_y[POINT_COUNT];
+		int perm_z[POINT_COUNT];
+		float scale;
+		float _padding[2];
 		int idx;
 		static int global_idx;
+
+		static void perlin_generate_perm(int* arr) {
+			for (int i = 0; i < POINT_COUNT; i++) {
+				arr[i] = i;
+			}
+			permute(arr, POINT_COUNT);
+		}
+
+		static void permute(int* arr, int n) {
+			for (int i = n - 1; i > 0; i--) {
+				int target = (int)random_float(0.0, i);
+				int tmp = arr[i];
+				arr[i] = arr[target];
+				arr[target] = tmp;
+			}
+		}
+
+		__device__
+		static float perlin_interp(vec3 c[2][2][2], double u, double v, double w) {
+			auto uu = u * u * (3 - 2 * u);
+			auto vv = v * v * (3 - 2 * v);
+			auto ww = w * w * (3 - 2 * w);
+			auto accum = 0.0;
+
+			for (int i = 0; i < 2; i++)
+				for (int j = 0; j < 2; j++)
+					for (int k = 0; k < 2; k++) {
+						vec3 weight_v(u - i, v - j, w - k);
+						accum += (i * uu + (1 - i) * (1 - uu))
+							* (j * vv + (1 - j) * (1 - vv))
+							* (k * ww + (1 - k) * (1 - ww))
+							* dot(c[i][j][k], weight_v);
+					}
+
+			return accum;
+		}
+
+		__device__
+		float turb(const point3& p, int depth = 7) const {
+			auto accum = 0.0;
+			auto temp_p = p;
+			auto weight = 1.0;
+
+			for (int i = 0; i < depth; i++) {
+				accum += weight * noise(temp_p);
+				weight *= 0.5;
+				temp_p *= 2;
+			}
+
+			return fabsf(accum);
+		}
 };
 
 int solid_color::global_idx = 0;
@@ -182,17 +272,17 @@ int image_texture::global_idx = 0;
 int noise_texture::global_idx = 0;
 
 
-#define NUM_SOLIDS 500
+#define NUM_SOLIDS 400
 __constant__ solid_color dev_solid_colors[NUM_SOLIDS];
 
-#define NUM_CHECKERS 500
+#define NUM_CHECKERS 400
 __constant__ checker_texture dev_checkers[NUM_CHECKERS];
 
-#define NUM_IMAGES 500
+#define NUM_IMAGES 400
 __constant__ image_texture dev_images[NUM_IMAGES];
 
-#define NUM_NOISE 50
-__device__ noise_texture dev_noises[NUM_NOISE];
+#define NUM_NOISE 1
+__constant__ noise_texture dev_noises[NUM_NOISE];
 
 void texturesToDevice(solid_color* solids, checker_texture* checkers, image_texture* images, noise_texture* noises) {
 	HANDLE_ERROR(cudaMemcpyToSymbol(dev_solid_colors, solids, NUM_SOLIDS * sizeof(solid_color), 0, cudaMemcpyHostToDevice));
@@ -202,7 +292,7 @@ void texturesToDevice(solid_color* solids, checker_texture* checkers, image_text
 }
 
 __device__
-color valueDispatch(int texType, int texIdx, double u, double v, const point3& p) {
+color valueDispatch(int texType, int texIdx, float u, float v, const point3& p) {
 	switch (texType) {
 		case TEXTURE_SOLID:
 			return dev_solid_colors[texIdx].value(u, v, p);

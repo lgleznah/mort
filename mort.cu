@@ -246,7 +246,7 @@ void earth(hittable_list& data, Camera& cam) {
 }
 
 void two_perlin_spheres(hittable_list& data, Camera& cam) {
-	noise_texture pertext('a');
+	noise_texture pertext(4.0);
 	lambertian mat(pertext.getType(), pertext.getIdx());
 	sphere s1(point3(0, -1000, 0), 1000, mat.getType(), mat.getIdx());
 	sphere s2(point3(0, 2, 0), 2, mat.getType(), mat.getIdx());
@@ -256,8 +256,8 @@ void two_perlin_spheres(hittable_list& data, Camera& cam) {
 	data.add(s2);
 
 	cam.aspect_ratio = 16.0 / 9.0;
-	cam.image_width = 400;
-	cam.samples_per_pixel = 100;
+	cam.image_width = 1200;
+	cam.samples_per_pixel = 20;
 	cam.bounce_limit = 50;
 
 	cam.vfov = 20;
