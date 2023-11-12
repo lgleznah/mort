@@ -1,5 +1,5 @@
-#ifndef TEXTURE_CUH
-#define TEXTURE_CUH
+#ifndef TEXTURES_CUH
+#define TEXTURES_CUH
 
 #include <cuda_runtime_api.h>
 

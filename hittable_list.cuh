@@ -5,9 +5,9 @@
 #include <memory>
 #include <cuda_runtime.h>
 
-#include "sphere.cuh"
+#include "objects.cuh"
 #include "materials.cuh"
-#include "texture.cuh"
+#include "textures.cuh"
 
 #define SOME_THREAD_ONLY(whatevs) {if ((threadIdx.x < 100) && (threadIdx.y < 100) && (blockIdx.x < 100) && (blockIdx.y < 100)) {whatevs;}}
 

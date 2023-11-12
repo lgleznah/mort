@@ -1,5 +1,5 @@
-#ifndef SPHERE_H
-#define SPHERE_H
+#ifndef OBJECTS_CUH
+#define OBJECTS_CUH
 
 #include <math_constants.h>
 
@@ -87,6 +87,24 @@ struct sphere {
 			u = phi / (2.0 * 3.141592565);
 			v = theta / 3.141592565;
 		}
+};
+
+struct quad {
+	public:
+		quad() {}
+		
+		quad(const point3& _Q, const point3& _u, const point3& _v, int material_type, int material_index)
+			: Q(_Q), u(_u), v(_v), mat_type(material_type), mat_idx(material_index) {}
+
+		bool hit(const ray& r, float t_min, float t_max, hit_record& rec) const {
+			return false;
+		}
+
+	private:
+		point3 Q;
+		vec3 u, v;
+		int mat_type;
+		int mat_idx;
 };
 
 #endif

@@ -7,7 +7,7 @@
 #include "vec3.cuh"
 #include "hit_record.cuh"
 #include "ray.cuh"
-#include "texture.cuh"
+#include "textures.cuh"
 
 #define MAT_LAMBERTIAN 1
 #define MAT_METAL 2

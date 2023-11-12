@@ -11,7 +11,7 @@
 
 #include "hittable_list.cuh"
 #include "materials.cuh"
-#include "sphere.cuh"
+#include "objects.cuh"
 #include "rng.cuh"
 #include "vec3.cuh"
 #include "camera.cuh"
@@ -257,8 +257,8 @@ void two_perlin_spheres(hittable_list& data, Camera& cam) {
 
 	cam.aspect_ratio = 16.0 / 9.0;
 	cam.image_width = 1200;
-	cam.samples_per_pixel = 20;
-	cam.bounce_limit = 50;
+	cam.samples_per_pixel = 5;
+	cam.bounce_limit = 10;
 
 	cam.vfov = 20;
 	cam.lookfrom = point3(13, 2, 3);

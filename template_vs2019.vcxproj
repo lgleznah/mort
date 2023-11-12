@@ -127,8 +127,8 @@
     <ClInclude Include="materials.cuh" />
     <ClInclude Include="ray.cuh" />
     <ClInclude Include="rng.cuh" />
-    <ClInclude Include="sphere.cuh" />
-    <ClInclude Include="texture.cuh" />
+    <ClInclude Include="objects.cuh" />
+    <ClInclude Include="textures.cuh" />
     <ClInclude Include="utils.h" />
     <ClInclude Include="vec3.cuh" />
   </ItemGroup>
