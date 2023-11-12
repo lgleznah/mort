@@ -82,10 +82,10 @@ struct sphere {
 		__device__
 		void compute_uv(const point3& p, float& u, float& v) const {
 			float theta = acos(-p.y());
-			float phi = atan2(-p.z(), p.x()) + 3.141592565f;
+			float phi = atan2(-p.z(), p.x()) + 3.141592565;
 
-			u = phi / (2.0 * 3.141592565f);
-			v = theta / 3.141592565f;
+			u = phi / (2.0 * 3.141592565);
+			v = theta / 3.141592565;
 		}
 };
 

@@ -245,6 +245,29 @@ void earth(hittable_list& data, Camera& cam) {
 	cam.defocus_angle = 0;
 }
 
+void two_perlin_spheres(hittable_list& data, Camera& cam) {
+	noise_texture pertext(4.0);
+	lambertian mat(pertext.getType(), pertext.getIdx());
+	sphere s1(point3(0, -1000, 0), 1000, mat.getType(), mat.getIdx());
+	sphere s2(point3(0, 2, 0), 2, mat.getType(), mat.getIdx());
+	data.add(pertext);
+	data.add(mat);
+	data.add(s1);
+	data.add(s2);
+
+	cam.aspect_ratio = 16.0 / 9.0;
+	cam.image_width = 1200;
+	cam.samples_per_pixel = 20;
+	cam.bounce_limit = 50;
+
+	cam.vfov = 20;
+	cam.lookfrom = point3(13, 2, 3);
+	cam.lookat = point3(0, 0, 0);
+	cam.vup = vec3(0, 1, 0);
+
+	cam.defocus_angle = 0;
+}
+
 int main(void) {
 	cudaEvent_t start, stop;
 
@@ -252,7 +275,7 @@ int main(void) {
 	Camera cam;
 	hittable_list data;
 
-	int scene_idx = 3;
+	int scene_idx = 4;
 
 	switch(scene_idx) {
 		case 1:
@@ -265,6 +288,10 @@ int main(void) {
 
 		case 3:
 			earth(data, cam);
+			break;
+
+		case 4:
+			two_perlin_spheres(data, cam);
 			break;
 	}
 
