@@ -158,6 +158,8 @@ struct hittable_list {
 					return dev_dielectrics[rec.mat_idx].scatter(r_in, rec, attenuation, scattered, states, idx);
 					break;
 			}
+
+			return false;
 		}
 
 	public:

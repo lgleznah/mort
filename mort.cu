@@ -269,41 +269,41 @@ void two_perlin_spheres(hittable_list& data, Camera& cam) {
 }
 
 void quads(hittable_list& data, Camera& cam) {
-	solid_color red(color(1.0, 0.2, 0.2));
+	//solid_color red(color(1.0, 0.2, 0.2));
 	solid_color green(color(0.2, 1.0, 0.2));
-	solid_color blue(color(0.2, 0.2, 1.0));
-	solid_color orange(color(1.0, 0.5, 0.0));
-	solid_color teal(color(0.2, 0.8, 0.8));
+	//solid_color blue(color(0.2, 0.2, 1.0));
+	//solid_color orange(color(1.0, 0.5, 0.0));
+	//solid_color teal(color(0.2, 0.8, 0.8));
 
-	lambertian left_mat(red.getType(), red.getIdx());
+	//lambertian left_mat(red.getType(), red.getIdx());
 	lambertian back_mat(green.getType(), green.getIdx());
-	lambertian right_mat(blue.getType(), blue.getIdx());
-	lambertian upper_mat(orange.getType(), orange.getIdx());
-	lambertian lower_mat(teal.getType(), teal.getIdx());
+	//lambertian right_mat(blue.getType(), blue.getIdx());
+	//lambertian upper_mat(orange.getType(), orange.getIdx());
+	//lambertian lower_mat(teal.getType(), teal.getIdx());
 
-	quad left_quad(point3(-3, -2, 5), vec3(0, 0, -4), vec3(0, 4, 0), left_mat.getType(), left_mat.getIdx());
+	//quad left_quad(point3(-3, -2, 5), vec3(0, 0, -4), vec3(0, 4, 0), left_mat.getType(), left_mat.getIdx());
 	quad back_quad(point3(-2, -2, 0), vec3(4, 0, 0), vec3(0, 4, 0), back_mat.getType(), back_mat.getIdx());
-	quad right_quad(point3(3, -2, 1), vec3(0, 0, 4), vec3(0, 4, 0), right_mat.getType(), right_mat.getIdx());
-	quad upper_quad(point3(-2, 3, 1), vec3(4, 0, 0), vec3(0, 0, 4), upper_mat.getType(), upper_mat.getIdx());
-	quad lower_quad(point3(-2, -3, 5), vec3(4, 0, 0), vec3(0, 0, -4), lower_mat.getType(), lower_mat.getIdx());
+	//quad right_quad(point3(3, -2, 1), vec3(0, 0, 4), vec3(0, 4, 0), right_mat.getType(), right_mat.getIdx());
+	//quad upper_quad(point3(-2, 3, 1), vec3(4, 0, 0), vec3(0, 0, 4), upper_mat.getType(), upper_mat.getIdx());
+	//quad lower_quad(point3(-2, -3, 5), vec3(4, 0, 0), vec3(0, 0, -4), lower_mat.getType(), lower_mat.getIdx());
 
-	data.add(red);
+	//data.add(red);
 	data.add(green);
-	data.add(blue);
-	data.add(orange);
-	data.add(teal);
+	//data.add(blue);
+	//data.add(orange);
+	//data.add(teal);
 
-	data.add(left_mat);
+	//data.add(left_mat);
 	data.add(back_mat);
-	data.add(right_mat);
-	data.add(upper_mat);
-	data.add(lower_mat);
+	//data.add(right_mat);
+	//data.add(upper_mat);
+	//data.add(lower_mat);
 
-	data.add(left_quad);
+	//data.add(left_quad);
 	data.add(back_quad);
-	data.add(right_quad);
-	data.add(upper_quad);
-	data.add(lower_quad);
+	//data.add(right_quad);
+	//data.add(upper_quad);
+	//data.add(lower_quad);
 
 	cam.aspect_ratio = 1.0;
 	cam.image_width = 400;
@@ -325,7 +325,7 @@ int main(void) {
 	Camera cam;
 	hittable_list data;
 
-	int scene_idx = 1;
+	int scene_idx = 4;
 
 	switch(scene_idx) {
 		case 1:

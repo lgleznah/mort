@@ -136,7 +136,7 @@ struct quad {
 		float D;
 		int mat_type;
 		int mat_idx;
-		unsigned char _padding[2];
+		//unsigned char _padding[3];
 };
 
 #endif

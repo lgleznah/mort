@@ -310,6 +310,8 @@ color valueDispatch(int texType, int texIdx, float u, float v, const point3& p) 
 			return dev_noises[texIdx].value(u, v, p);
 			break;
 	}
+
+	return color(1.0, 0.0, 1.0);
 }
 
 #endif
