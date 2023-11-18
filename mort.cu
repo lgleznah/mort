@@ -11,7 +11,7 @@
 
 #include "hittable_list.cuh"
 #include "materials.cuh"
-#include "sphere.cuh"
+#include "objects.cuh"
 #include "rng.cuh"
 #include "vec3.cuh"
 #include "camera.cuh"
@@ -257,11 +257,61 @@ void two_perlin_spheres(hittable_list& data, Camera& cam) {
 
 	cam.aspect_ratio = 16.0 / 9.0;
 	cam.image_width = 1200;
-	cam.samples_per_pixel = 20;
-	cam.bounce_limit = 50;
+	cam.samples_per_pixel = 5;
+	cam.bounce_limit = 10;
 
 	cam.vfov = 20;
 	cam.lookfrom = point3(13, 2, 3);
+	cam.lookat = point3(0, 0, 0);
+	cam.vup = vec3(0, 1, 0);
+
+	cam.defocus_angle = 0;
+}
+
+void quads(hittable_list& data, Camera& cam) {
+	solid_color red(color(1.0, 0.2, 0.2));
+	solid_color green(color(0.2, 1.0, 0.2));
+	solid_color blue(color(0.2, 0.2, 1.0));
+	solid_color orange(color(1.0, 0.5, 0.0));
+	solid_color teal(color(0.2, 0.8, 0.8));
+
+	lambertian left_mat(red.getType(), red.getIdx());
+	lambertian back_mat(green.getType(), green.getIdx());
+	lambertian right_mat(blue.getType(), blue.getIdx());
+	lambertian upper_mat(orange.getType(), orange.getIdx());
+	lambertian lower_mat(teal.getType(), teal.getIdx());
+
+	quad left_quad(point3(-3, -2, 5), vec3(0, 0, -4), vec3(0, 4, 0), left_mat.getType(), left_mat.getIdx());
+	quad back_quad(point3(-2, -2, 0), vec3(4, 0, 0), vec3(0, 4, 0), back_mat.getType(), back_mat.getIdx());
+	quad right_quad(point3(3, -2, 1), vec3(0, 0, 4), vec3(0, 4, 0), right_mat.getType(), right_mat.getIdx());
+	quad upper_quad(point3(-2, 3, 1), vec3(4, 0, 0), vec3(0, 0, 4), upper_mat.getType(), upper_mat.getIdx());
+	quad lower_quad(point3(-2, -3, 5), vec3(4, 0, 0), vec3(0, 0, -4), lower_mat.getType(), lower_mat.getIdx());
+
+	data.add(red);
+	data.add(green);
+	data.add(blue);
+	data.add(orange);
+	data.add(teal);
+
+	data.add(left_mat);
+	data.add(back_mat);
+	data.add(right_mat);
+	data.add(upper_mat);
+	data.add(lower_mat);
+
+	data.add(left_quad);
+	data.add(back_quad);
+	data.add(right_quad);
+	data.add(upper_quad);
+	data.add(lower_quad);
+
+	cam.aspect_ratio = 1.0;
+	cam.image_width = 400;
+	cam.samples_per_pixel = 100;
+	cam.bounce_limit = 50;
+
+	cam.vfov = 20;
+	cam.lookfrom = point3(0, 0, 9);
 	cam.lookat = point3(0, 0, 0);
 	cam.vup = vec3(0, 1, 0);
 
@@ -275,7 +325,7 @@ int main(void) {
 	Camera cam;
 	hittable_list data;
 
-	int scene_idx = 4;
+	int scene_idx = 5;
 
 	switch(scene_idx) {
 		case 1:
@@ -292,6 +342,10 @@ int main(void) {
 
 		case 4:
 			two_perlin_spheres(data, cam);
+			break;
+
+		case 5:
+			quads(data, cam);
 			break;
 	}
 
@@ -333,49 +387,3 @@ int main(void) {
 
 	bitmap.anim_and_exit((void (*)(uchar4*, void*, int))update, (void (*)(void*))anim_exit);
 }
-/*
-#include <stdio.h>
-#include <stdint.h>
-
-typedef uint8_t mt;  // use an integer type
-
-__global__ void kernel(cudaTextureObject_t tex)
-{
-	int x = threadIdx.x;
-	int y = threadIdx.y;
-	mt val = tex2D<mt>(tex, x, y);
-	printf("%d, ", val);
-}
-
-int main(int argc, char** argv)
-{
-	cudaDeviceProp prop;
-	cudaGetDeviceProperties(&prop, 0);
-	printf("texturePitchAlignment: %lu\n", prop.texturePitchAlignment);
-	cudaTextureObject_t tex;
-	const int num_rows = 4;
-	const int num_cols = prop.texturePitchAlignment * 1; // should be able to use a different multiplier here
-	const int ts = num_cols * num_rows;
-	const int ds = ts * sizeof(mt);
-	mt* dataIn = (mt*) malloc(ds * sizeof(mt));
-	for (int i = 0; i < ts; i++) dataIn[i] = i;
-	mt* dataDev = 0;
-	cudaMalloc((void**)&dataDev, ds);
-	cudaMemcpy(dataDev, dataIn, ds, cudaMemcpyHostToDevice);
-	struct cudaResourceDesc resDesc;
-	memset(&resDesc, 0, sizeof(resDesc));
-	resDesc.resType = cudaResourceTypePitch2D;
-	resDesc.res.pitch2D.devPtr = dataDev;
-	resDesc.res.pitch2D.width = num_cols;
-	resDesc.res.pitch2D.height = num_rows;
-	resDesc.res.pitch2D.desc = cudaCreateChannelDesc<mt>();
-	resDesc.res.pitch2D.pitchInBytes = num_cols * sizeof(mt);
-	struct cudaTextureDesc texDesc;
-	memset(&texDesc, 0, sizeof(texDesc));
-	cudaCreateTextureObject(&tex, &resDesc, &texDesc, NULL);
-	dim3 threads(4, 4);
-	kernel << <1, threads >> > (tex);
-	cudaDeviceSynchronize();
-	printf("\n");
-	return 0;
-}*/

@@ -1,5 +1,5 @@
-#ifndef SPHERE_H
-#define SPHERE_H
+#ifndef OBJECTS_CUH
+#define OBJECTS_CUH
 
 #include <math_constants.h>
 
@@ -87,6 +87,57 @@ struct sphere {
 			u = phi / (2.0 * 3.141592565);
 			v = theta / 3.141592565;
 		}
+};
+
+struct quad {
+	public:
+		quad() {}
+		
+		quad(const point3& _Q, const point3& _u, const point3& _v, int material_type, int material_index)
+			: Q(_Q), u(_u), v(_v), mat_type(material_type), mat_idx(material_index) 
+		{
+			vec3 n = cross(u, v);
+			normal = unit_vector(n);
+			D = dot(normal, Q);
+			w = n / dot(n,n);
+		}
+
+		__device__
+		bool hit(const ray& r, float t_min, float t_max, hit_record& rec) const {
+			float denom = dot(normal, r.direction());
+
+			if (fabsf(denom) < 1e-8) return false;
+
+			float t = (D - dot(normal, r.origin())) / denom;
+			if (t < t_min || t > t_max) return false;
+
+			vec3 intersection = r.at(t);
+			vec3 planar_hitp_vector = intersection - Q;
+			float alpha = dot(w, cross(planar_hitp_vector, v));
+			float beta = dot(w, cross(u, planar_hitp_vector));
+
+			if ((alpha < 0) || (alpha > 1) || (beta < 0) || (beta > 1)) return false;
+
+			rec.t = t;
+			rec.p = intersection;
+			rec.mat_type = mat_type;
+			rec.mat_idx = mat_idx;
+			rec.u = alpha;
+			rec.v = beta;
+			rec.set_face_normal(r, normal);
+
+			return true;
+		}
+
+	private:
+		point3 Q;
+		vec3 u, v;
+		vec3 normal;
+		vec3 w;
+		float D;
+		int mat_type;
+		int mat_idx;
+		//unsigned char _padding[3];
 };
 
 #endif

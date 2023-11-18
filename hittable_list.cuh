@@ -5,18 +5,21 @@
 #include <memory>
 #include <cuda_runtime.h>
 
-#include "sphere.cuh"
+#include "objects.cuh"
 #include "materials.cuh"
-#include "texture.cuh"
+#include "textures.cuh"
 
 #define SOME_THREAD_ONLY(whatevs) {if ((threadIdx.x < 100) && (threadIdx.y < 100) && (blockIdx.x < 100) && (blockIdx.y < 100)) {whatevs;}}
 
 using std::vector;
 
-#define NUM_SPHERES 500
+#define NUM_SPHERES 50
 __constant__ sphere dev_spheres[NUM_SPHERES];
 
-#define NUM_LAMBERTIANS 500
+#define NUM_QUADS 50
+__constant__ quad dev_quads[NUM_QUADS];
+
+#define NUM_LAMBERTIANS 50
 __constant__ lambertian dev_lambertians[NUM_LAMBERTIANS];
 
 #define NUM_METALS 100
@@ -29,9 +32,18 @@ struct hittable_list {
 
 	public:
 		__host__  hittable_list() { 
-			num_spheres = num_lambertians = num_metals = num_dielectrics = num_solid_colors = num_checker_textures = num_image_textures = num_noise_textures = 0;
+			num_spheres = 
+				num_quads =
+				num_lambertians = 
+				num_metals = 
+				num_dielectrics = 
+				num_solid_colors = 
+				num_checker_textures = 
+				num_image_textures = 
+				num_noise_textures = 0;
 
-			spheres = (sphere*) malloc(NUM_SPHERES * sizeof(sphere));
+			spheres = (sphere*)malloc(NUM_SPHERES * sizeof(sphere));
+			quads = (quad*) malloc(NUM_QUADS * sizeof(quad));
 			lambertians = (lambertian*) malloc(NUM_LAMBERTIANS * sizeof(lambertian));
 			metals = (metal*) malloc(NUM_METALS * sizeof(metal));
 			dielectrics = (dielectric*) malloc(NUM_DIELECTRICS * sizeof(dielectric));
@@ -43,6 +55,10 @@ struct hittable_list {
 
 		void add(sphere object) { 
 			spheres[num_spheres++] = object;
+		}
+
+		void add(quad object) {
+			quads[num_quads++] = object;
 		}
 
 		void add(lambertian mat) {
@@ -75,6 +91,7 @@ struct hittable_list {
 
 		void clear() { 
 			free(spheres);
+			free(quads);
 			free(lambertians);
 			free(metals);
 			free(dielectrics);
@@ -82,11 +99,21 @@ struct hittable_list {
 			free(checker_textures);
 			free(image_textures);
 			free(noise_textures);
-			num_spheres = num_lambertians = num_metals = num_dielectrics = num_solid_colors = num_checker_textures = num_image_textures = num_noise_textures = 0;
+
+			num_spheres =
+				num_quads =
+				num_lambertians =
+				num_metals =
+				num_dielectrics =
+				num_solid_colors =
+				num_checker_textures =
+				num_image_textures =
+				num_noise_textures = 0;
 		}
 
 		void toDevice() {
 			HANDLE_ERROR(cudaMemcpyToSymbol(dev_spheres, spheres, num_spheres * sizeof(sphere), 0, cudaMemcpyHostToDevice));
+			HANDLE_ERROR(cudaMemcpyToSymbol(dev_quads, quads, num_quads * sizeof(quad), 0, cudaMemcpyHostToDevice));
 			HANDLE_ERROR(cudaMemcpyToSymbol(dev_lambertians, lambertians, num_lambertians * sizeof(lambertian), 0, cudaMemcpyHostToDevice));
 			HANDLE_ERROR(cudaMemcpyToSymbol(dev_metals, metals, num_metals * sizeof(metal), 0, cudaMemcpyHostToDevice));
 			HANDLE_ERROR(cudaMemcpyToSymbol(dev_dielectrics, dielectrics, num_dielectrics * sizeof(dielectric), 0, cudaMemcpyHostToDevice));
@@ -100,6 +127,14 @@ struct hittable_list {
 
 			for (uint16_t i = 0; i < num_spheres; i++) {
 				if (dev_spheres[i].hit(r, t_min, closest_so_far, temp_rec)) {
+					hit_anything = true;
+					closest_so_far = temp_rec.t;
+					rec = temp_rec;
+				}
+			}
+
+			for (uint16_t i = 0; i < num_quads; i++) {
+				if (dev_quads[i].hit(r, t_min, closest_so_far, temp_rec)) {
 					hit_anything = true;
 					closest_so_far = temp_rec.t;
 					rec = temp_rec;
@@ -123,11 +158,16 @@ struct hittable_list {
 					return dev_dielectrics[rec.mat_idx].scatter(r_in, rec, attenuation, scattered, states, idx);
 					break;
 			}
+
+			return false;
 		}
 
 	public:
 		sphere* spheres;
 		int num_spheres;
+
+		quad* quads;
+		int num_quads;
 
 		lambertian* lambertians;
 		int num_lambertians;
