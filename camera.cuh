@@ -15,6 +15,9 @@ struct Camera {
 	int samples_per_pixel = 50;
 	int bounce_limit = 10;
 	int vfov = 90;
+	color background = color(0.70, 0.80, 1.00);
+	color* recursionAttenuation;
+	color* recursionEmission;
 
 	point3 center;
 	point3 pixel00_loc;
@@ -72,8 +75,9 @@ struct Camera {
 
 		int iter = 0;
 		ray current_ray = r;
+		int recursionOffset = x * bounce_limit + y * image_width * bounce_limit;
 
-		color accumulator(1.0, 1.0, 1.0);
+		color finalValue;
 
 		while (iter < bounce_limit) {
 			hit = false;
@@ -81,31 +85,37 @@ struct Camera {
 				// If hit, continue recursion after computing scatter color
 				ray scattered;
 				color attenuation;
+				color emission = world.emit(rec.mat_type, rec.mat_idx, rec.u, rec.v, rec.p);
 				if (world.scatter(current_ray, rec, attenuation, scattered, states, idx)) {
-					accumulator = elementwise_mult(accumulator, attenuation);
 					current_ray = scattered;
+					recursionAttenuation[recursionOffset + iter] = attenuation;
+					recursionEmission[recursionOffset + iter] = emission;
 					iter++;
 				}
 				else {
-					accumulator = color(0, 0, 0);
+					finalValue = emission;
 					break;
 				}
 
 			}
 			else {
 				// If no hit, stop recursion here
-				vec3 unit_direction = unit_vector(current_ray.direction());
-				auto t = 0.5 * (unit_direction.y() + 1.0);
-				accumulator = elementwise_mult(accumulator, (1.0 - t) * color(1.0, 1.0, 1.0) + t * color(0.5, 0.7, 1.0));
+				finalValue = background;
 				break;
 			}
 		}
 
 		if (iter == bounce_limit) {
-			accumulator = color(0, 0, 0);
+			finalValue = color(0, 0, 0);
 		}
 
-		return accumulator;
+		// Unwind recursion, multiplying by attenuation and adding emission of each iteration
+		while (iter >= 0) {
+			finalValue = finalValue * recursionAttenuation[recursionOffset + iter] + recursionEmission[recursionOffset + iter];
+			iter--;
+		}
+
+		return finalValue;
 	}
 
 	__device__ void render(uchar4* ptr, curandState* states, hittable_list world) {

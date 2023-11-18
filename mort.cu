@@ -318,6 +318,38 @@ void quads(hittable_list& data, Camera& cam) {
 	cam.defocus_angle = 0;
 }
 
+void simple_light(hittable_list& data, Camera& cam) {
+
+	noise_texture pertext(4);
+	lambertian permat(pertext.getType(), pertext.getIdx());
+	sphere s1(point3(0, -1000, 0), 1000, permat.getType(), permat.getIdx());
+	sphere s2(point3(0, 2, 0), 2, permat.getType(), permat.getIdx());
+	data.add(pertext);
+	data.add(permat);
+	data.add(s1);
+	data.add(s2);
+
+	solid_color lightcolor(color(4, 4, 4));
+	diffuse_light difflight(lightcolor.getType(), lightcolor.getIdx());
+	quad farQuad(point3(3, 1, -2), vec3(2, 0, 0), vec3(0, 2, 0), difflight.getType(), difflight.getIdx());
+	data.add(lightcolor);
+	data.add(difflight);
+	data.add(farQuad);
+
+	cam.aspect_ratio = 16.0 / 9.0;
+	cam.image_width = 1200;
+	cam.samples_per_pixel = 20;
+	cam.bounce_limit = 10;
+	cam.background = color(0.5, 0.5, 0.5);
+
+	cam.vfov = 20;
+	cam.lookfrom = point3(26, 3, 6);
+	cam.lookat = point3(0, 2, 0);
+	cam.vup = vec3(0, 1, 0);
+
+	cam.defocus_angle = 0;
+}
+
 int main(void) {
 	cudaEvent_t start, stop;
 
@@ -325,7 +357,7 @@ int main(void) {
 	Camera cam;
 	hittable_list data;
 
-	int scene_idx = 5;
+	int scene_idx = 6;
 
 	switch(scene_idx) {
 		case 1:
@@ -346,6 +378,10 @@ int main(void) {
 
 		case 5:
 			quads(data, cam);
+			break;
+
+		case 6:
+			simple_light(data, cam);
 			break;
 	}
 
@@ -368,6 +404,14 @@ int main(void) {
 	int seed = 69420;
 	HANDLE_ERROR(cudaMalloc((void**)&dev_states, cam.image_width * cam.image_height * sizeof(curandState)));
 	setup_rng<<<blocks, threads>>>(dev_states, seed, cam.image_width);
+
+	//// Recursion attenuation and emission setup
+	color* recursionAttenuation;
+	color* recursionEmission;
+	HANDLE_ERROR(cudaMalloc((void**)&recursionAttenuation, cam.bounce_limit * cam.image_width * cam.image_height * sizeof(color)));
+	HANDLE_ERROR(cudaMalloc((void**)&recursionEmission, cam.bounce_limit * cam.image_width * cam.image_height * sizeof(color)));
+	cam.recursionAttenuation = recursionAttenuation;
+	cam.recursionEmission = recursionEmission;
 
 	//// Update function setup
 	DataBlock update_data;
