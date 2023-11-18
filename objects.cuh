@@ -96,7 +96,8 @@ struct quad {
 		quad(const point3& _Q, const point3& _u, const point3& _v, int material_type, int material_index)
 			: Q(_Q), u(_u), v(_v), mat_type(material_type), mat_idx(material_index) 
 		{
-			vec3 n = unit_vector(cross(u, v));
+			vec3 n = cross(u, v);
+			normal = unit_vector(n);
 			D = dot(normal, Q);
 			w = n / dot(n,n);
 		}
