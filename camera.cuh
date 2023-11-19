@@ -110,11 +110,14 @@ struct Camera {
 		}
 
 		// Unwind recursion, multiplying by attenuation and adding emission of each iteration
-		while (iter >= 0) {
-			finalValue = finalValue * recursionAttenuation[recursionOffset + iter] + recursionEmission[recursionOffset + iter];
+		while (iter > 0) {
 			iter--;
+			finalValue = finalValue * recursionAttenuation[recursionOffset + iter] + recursionEmission[recursionOffset + iter];
+			//recursionAttenuation[recursionOffset + iter] = color(0, 0, 0);
+			//recursionEmission[recursionOffset + iter] = color(0, 0, 0);
 		}
 
+		//printf("%f %f %f\n", finalValue.x(), finalValue.y(), finalValue.z());
 		return finalValue;
 	}
 

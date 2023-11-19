@@ -129,7 +129,7 @@ struct hittable_list {
 			HANDLE_ERROR(cudaMemcpyToSymbol(dev_metals, metals, num_metals * sizeof(metal), 0, cudaMemcpyHostToDevice));
 			HANDLE_ERROR(cudaMemcpyToSymbol(dev_dielectrics, dielectrics, num_dielectrics * sizeof(dielectric), 0, cudaMemcpyHostToDevice));
 			HANDLE_ERROR(cudaMemcpyToSymbol(dev_diffuse_lights, diffuse_lights, num_diffuse_lights * sizeof(diffuse_light), 0, cudaMemcpyHostToDevice));
-			texturesToDevice(solid_colors, checker_textures, image_textures, noise_textures);
+			texturesToDevice(solid_colors, num_solid_colors, checker_textures, num_checker_textures, image_textures, num_image_textures, noise_textures, num_noise_textures);
 		}
 
 		__device__ bool hit(const ray& r, float t_min, float t_max, hit_record& rec) const {
@@ -185,15 +185,15 @@ struct hittable_list {
 					break;
 
 				case MAT_METAL:
-					return dev_metals[mat_idx].emitted(u, v, p);;
+					return dev_metals[mat_idx].emitted(u, v, p);
 					break;
 
 				case MAT_DIELECTRIC:
-					return dev_dielectrics[mat_idx].emitted(u, v, p);;
+					return dev_dielectrics[mat_idx].emitted(u, v, p);
 					break;
 
 				case MAT_DIFFUSE_LIGHT:
-					return dev_diffuse_lights[mat_idx].emitted(u, v, p);;
+					return dev_diffuse_lights[mat_idx].emitted(u, v, p);
 					break;
 				}
 

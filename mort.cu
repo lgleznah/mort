@@ -332,15 +332,17 @@ void simple_light(hittable_list& data, Camera& cam) {
 	solid_color lightcolor(color(4, 4, 4));
 	diffuse_light difflight(lightcolor.getType(), lightcolor.getIdx());
 	quad farQuad(point3(3, 1, -2), vec3(2, 0, 0), vec3(0, 2, 0), difflight.getType(), difflight.getIdx());
+	sphere lightOrb(point3(0, 7, 0), 2, difflight.getType(), difflight.getIdx());
 	data.add(lightcolor);
 	data.add(difflight);
 	data.add(farQuad);
+	data.add(lightOrb);
 
 	cam.aspect_ratio = 16.0 / 9.0;
 	cam.image_width = 1200;
-	cam.samples_per_pixel = 20;
+	cam.samples_per_pixel = 10;
 	cam.bounce_limit = 10;
-	cam.background = color(0.5, 0.5, 0.5);
+	cam.background = color(0.01, 0.01, 0.01);
 
 	cam.vfov = 20;
 	cam.lookfrom = point3(26, 3, 6);

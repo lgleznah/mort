@@ -210,7 +210,6 @@ struct noise_texture {
 		int perm_y[POINT_COUNT];
 		int perm_z[POINT_COUNT];
 		float scale;
-		float _padding[2];
 		int idx;
 		static int global_idx;
 
@@ -284,11 +283,11 @@ __constant__ image_texture dev_images[NUM_IMAGES];
 #define NUM_NOISE 1
 __constant__ noise_texture dev_noises[NUM_NOISE];
 
-void texturesToDevice(solid_color* solids, checker_texture* checkers, image_texture* images, noise_texture* noises) {
-	HANDLE_ERROR(cudaMemcpyToSymbol(dev_solid_colors, solids, NUM_SOLIDS * sizeof(solid_color), 0, cudaMemcpyHostToDevice));
-	HANDLE_ERROR(cudaMemcpyToSymbol(dev_checkers, checkers, NUM_CHECKERS * sizeof(checker_texture), 0, cudaMemcpyHostToDevice));
-	HANDLE_ERROR(cudaMemcpyToSymbol(dev_images, images, NUM_IMAGES * sizeof(image_texture), 0, cudaMemcpyHostToDevice));
-	HANDLE_ERROR(cudaMemcpyToSymbol(dev_noises, noises, NUM_NOISE * sizeof(noise_texture), 0, cudaMemcpyHostToDevice));
+void texturesToDevice(solid_color* solids, int num_solids, checker_texture* checkers, int num_checkers, image_texture* images, int num_images, noise_texture* noises, int num_noises) {
+	HANDLE_ERROR(cudaMemcpyToSymbol(dev_solid_colors, solids, num_solids * sizeof(solid_color), 0, cudaMemcpyHostToDevice));
+	HANDLE_ERROR(cudaMemcpyToSymbol(dev_checkers, checkers, num_checkers * sizeof(checker_texture), 0, cudaMemcpyHostToDevice));
+	HANDLE_ERROR(cudaMemcpyToSymbol(dev_images, images, num_images * sizeof(image_texture), 0, cudaMemcpyHostToDevice));
+	HANDLE_ERROR(cudaMemcpyToSymbol(dev_noises, noises, num_noises * sizeof(noise_texture), 0, cudaMemcpyHostToDevice));
 }
 
 __device__
