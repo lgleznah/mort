@@ -356,7 +356,7 @@ void cornell_box(hittable_list& data, Camera& cam) {
 	solid_color red(color(.65, .05, .05));
 	solid_color white(color(.73, .73, .73));
 	solid_color green(color(.12, .45, .15));
-	solid_color light(color(15, 15, 15));
+	solid_color light(color(15, 15, 10));
 
 	lambertian red_wall(red.getType(), red.getIdx());
 	lambertian white_wall(white.getType(), white.getIdx());
