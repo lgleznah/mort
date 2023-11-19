@@ -42,4 +42,22 @@ __device__ inline float linear_to_gamma(float color) {
     return sqrt(color);
 }
 
+void box(const point3& a, const point3& b, int matType, int matIdx, hittable_list& data) {
+    point3 min = point3(fmin(a.x(), b.x()), fmin(a.y(), b.y()), fmin(a.z(), b.z()));
+    point3 max = point3(fmax(a.x(), b.x()), fmax(a.y(), b.y()), fmax(a.z(), b.z()));
+
+    vec3 dx = vec3(max.x() - min.x(), 0, 0);
+    vec3 dy = vec3(0, max.y() - min.y(), 0);
+    vec3 dz = vec3(0, 0, max.z() - min.z());
+
+    data.add(quad(point3(min.x(), min.y(), max.z()), dx, dy, matType, matIdx)); // front
+    data.add(quad(point3(max.x(), min.y(), max.z()), -dz, dy, matType, matIdx)); // right
+    data.add(quad(point3(max.x(), min.y(), min.z()), -dx, dy, matType, matIdx)); // back
+    data.add(quad(point3(min.x(), min.y(), min.z()), dz, dy, matType, matIdx)); // left
+    data.add(quad(point3(min.x(), max.y(), max.z()), dx, -dz, matType, matIdx)); // top
+    data.add(quad(point3(min.x(), min.y(), min.z()), dx, dz, matType, matIdx)); // bottom
+
+    return;
+}
+
 #endif
