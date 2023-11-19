@@ -318,6 +318,85 @@ void quads(hittable_list& data, Camera& cam) {
 	cam.defocus_angle = 0;
 }
 
+void simple_light(hittable_list& data, Camera& cam) {
+
+	noise_texture pertext(4);
+	lambertian permat(pertext.getType(), pertext.getIdx());
+	sphere s1(point3(0, -1000, 0), 1000, permat.getType(), permat.getIdx());
+	sphere s2(point3(0, 2, 0), 2, permat.getType(), permat.getIdx());
+	data.add(pertext);
+	data.add(permat);
+	data.add(s1);
+	data.add(s2);
+
+	solid_color lightcolor(color(4, 4, 4));
+	diffuse_light difflight(lightcolor.getType(), lightcolor.getIdx());
+	quad farQuad(point3(3, 1, -2), vec3(2, 0, 0), vec3(0, 2, 0), difflight.getType(), difflight.getIdx());
+	sphere lightOrb(point3(0, 7, 0), 2, difflight.getType(), difflight.getIdx());
+	data.add(lightcolor);
+	data.add(difflight);
+	data.add(farQuad);
+	data.add(lightOrb);
+
+	cam.aspect_ratio = 16.0 / 9.0;
+	cam.image_width = 1200;
+	cam.samples_per_pixel = 10;
+	cam.bounce_limit = 10;
+	cam.background = color(0.01, 0.01, 0.01);
+
+	cam.vfov = 20;
+	cam.lookfrom = point3(26, 3, 6);
+	cam.lookat = point3(0, 2, 0);
+	cam.vup = vec3(0, 1, 0);
+
+	cam.defocus_angle = 0;
+}
+
+void cornell_box(hittable_list& data, Camera& cam) {
+	solid_color red(color(.65, .05, .05));
+	solid_color white(color(.73, .73, .73));
+	solid_color green(color(.12, .45, .15));
+	solid_color light(color(15, 15, 10));
+
+	lambertian red_wall(red.getType(), red.getIdx());
+	lambertian white_wall(white.getType(), white.getIdx());
+	lambertian green_wall(green.getType(), green.getIdx());
+	diffuse_light lamp(light.getType(), light.getIdx());
+
+	data.add(red);
+	data.add(white);
+	data.add(green);
+	data.add(light);
+
+	data.add(red_wall);
+	data.add(white_wall);
+	data.add(green_wall);
+	data.add(lamp);
+
+	data.add(quad(point3(555, 0, 0), vec3(0, 555, 0), vec3(0, 0, 555), green_wall.getType(), green_wall.getIdx()));
+	data.add(quad(point3(0, 0, 0), vec3(0, 555, 0), vec3(0, 0, 555), red_wall.getType(), red_wall.getIdx()));
+	data.add(quad(point3(343, 554, 332), vec3(-130, 0, 0), vec3(0, 0, -105), lamp.getType(), lamp.getIdx()));
+	data.add(quad(point3(0, 0, 0), vec3(555, 0, 0), vec3(0, 0, 555), white_wall.getType(), white_wall.getIdx()));
+	data.add(quad(point3(555, 555, 555), vec3(-555, 0, 0), vec3(0, 0, -555), white_wall.getType(), white_wall.getIdx()));
+	data.add(quad(point3(0, 0, 555), vec3(555, 0, 0), vec3(0, 555, 0), white_wall.getType(), white_wall.getIdx()));
+
+	box(point3(130, 0, 65), point3(295, 165, 230), white_wall.getType(), white_wall.getIdx(), data);
+	box(point3(265, 0, 295), point3(430, 330, 460), white_wall.getType(), white_wall.getIdx(), data);
+
+	cam.aspect_ratio = 1.0;
+	cam.image_width = 800;
+	cam.samples_per_pixel = 10000;
+	cam.bounce_limit = 500;
+	cam.background = color(0, 0, 0);
+
+	cam.vfov = 40;
+	cam.lookfrom = point3(278, 278, -800);
+	cam.lookat = point3(278, 278, 0);
+	cam.vup = vec3(0, 1, 0);
+
+	cam.defocus_angle = 0;
+}
+
 int main(void) {
 	cudaEvent_t start, stop;
 
@@ -325,7 +404,7 @@ int main(void) {
 	Camera cam;
 	hittable_list data;
 
-	int scene_idx = 5;
+	int scene_idx = 7;
 
 	switch(scene_idx) {
 		case 1:
@@ -346,6 +425,14 @@ int main(void) {
 
 		case 5:
 			quads(data, cam);
+			break;
+
+		case 6:
+			simple_light(data, cam);
+			break;
+
+		case 7:
+			cornell_box(data, cam);
 			break;
 	}
 
@@ -368,6 +455,14 @@ int main(void) {
 	int seed = 69420;
 	HANDLE_ERROR(cudaMalloc((void**)&dev_states, cam.image_width * cam.image_height * sizeof(curandState)));
 	setup_rng<<<blocks, threads>>>(dev_states, seed, cam.image_width);
+
+	//// Recursion attenuation and emission setup
+	color* recursionAttenuation;
+	color* recursionEmission;
+	HANDLE_ERROR(cudaMalloc((void**)&recursionAttenuation, cam.bounce_limit * cam.image_width * cam.image_height * sizeof(color)));
+	HANDLE_ERROR(cudaMalloc((void**)&recursionEmission, cam.bounce_limit * cam.image_width * cam.image_height * sizeof(color)));
+	cam.recursionAttenuation = recursionAttenuation;
+	cam.recursionEmission = recursionEmission;
 
 	//// Update function setup
 	DataBlock update_data;
