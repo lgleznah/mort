@@ -13,12 +13,6 @@
 
 using std::vector;
 
-#define NUM_SPHERES 50
-__constant__ sphere dev_spheres[NUM_SPHERES];
-
-#define NUM_QUADS 50
-__constant__ quad dev_quads[NUM_QUADS];
-
 #define NUM_LAMBERTIANS 50
 __constant__ lambertian dev_lambertians[NUM_LAMBERTIANS];
 
@@ -37,6 +31,8 @@ struct hittable_list {
 		__host__  hittable_list() { 
 			num_spheres = 
 				num_quads =
+				num_translates =
+				num_rotate_y =
 				num_lambertians = 
 				num_metals = 
 				num_dielectrics = 
@@ -47,7 +43,9 @@ struct hittable_list {
 				num_noise_textures = 0;
 
 			spheres = (sphere*)malloc(NUM_SPHERES * sizeof(sphere));
-			quads = (quad*) malloc(NUM_QUADS * sizeof(quad));
+			quads = (quad*)malloc(NUM_QUADS * sizeof(quad));
+			translates = (translate*)malloc(NUM_TRANSLATE * sizeof(translate));
+			rotate_ys = (rotate_y*) malloc(NUM_ROTATE_Y * sizeof(rotate_y));
 			lambertians = (lambertian*) malloc(NUM_LAMBERTIANS * sizeof(lambertian));
 			metals = (metal*) malloc(NUM_METALS * sizeof(metal));
 			dielectrics = (dielectric*)malloc(NUM_DIELECTRICS * sizeof(dielectric));
@@ -64,6 +62,14 @@ struct hittable_list {
 
 		void add(quad object) {
 			quads[num_quads++] = object;
+		}
+
+		void add(translate object) {
+			translates[num_translates++] = object;
+		}
+
+		void add(rotate_y object) {
+			rotate_ys[num_rotate_y++] = object;
 		}
 
 		void add(lambertian mat) {
@@ -101,6 +107,8 @@ struct hittable_list {
 		void clear() { 
 			free(spheres);
 			free(quads);
+			free(translates);
+			free(rotate_ys);
 			free(lambertians);
 			free(metals);
 			free(dielectrics);
@@ -112,6 +120,8 @@ struct hittable_list {
 
 			num_spheres =
 				num_quads =
+				num_translates =
+				num_rotate_y =
 				num_lambertians =
 				num_metals =
 				num_dielectrics =
@@ -123,12 +133,11 @@ struct hittable_list {
 		}
 
 		void toDevice() {
-			HANDLE_ERROR(cudaMemcpyToSymbol(dev_spheres, spheres, num_spheres * sizeof(sphere), 0, cudaMemcpyHostToDevice));
-			HANDLE_ERROR(cudaMemcpyToSymbol(dev_quads, quads, num_quads * sizeof(quad), 0, cudaMemcpyHostToDevice));
 			HANDLE_ERROR(cudaMemcpyToSymbol(dev_lambertians, lambertians, num_lambertians * sizeof(lambertian), 0, cudaMemcpyHostToDevice));
 			HANDLE_ERROR(cudaMemcpyToSymbol(dev_metals, metals, num_metals * sizeof(metal), 0, cudaMemcpyHostToDevice));
 			HANDLE_ERROR(cudaMemcpyToSymbol(dev_dielectrics, dielectrics, num_dielectrics * sizeof(dielectric), 0, cudaMemcpyHostToDevice));
 			HANDLE_ERROR(cudaMemcpyToSymbol(dev_diffuse_lights, diffuse_lights, num_diffuse_lights * sizeof(diffuse_light), 0, cudaMemcpyHostToDevice));
+			objectsToDevice(spheres, num_spheres, quads, num_quads, translates, num_translates, rotate_ys, num_rotate_y);
 			texturesToDevice(solid_colors, num_solid_colors, checker_textures, num_checker_textures, image_textures, num_image_textures, noise_textures, num_noise_textures);
 		}
 
@@ -206,6 +215,12 @@ struct hittable_list {
 
 		quad* quads;
 		int num_quads;
+
+		translate* translates;
+		int num_translates;
+
+		rotate_y* rotate_ys;
+		int num_rotate_y;
 
 		lambertian* lambertians;
 		int num_lambertians;

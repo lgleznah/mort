@@ -60,4 +60,42 @@ void box(const point3& a, const point3& b, int matType, int matIdx, hittable_lis
     return;
 }
 
+void rotated_box(const point3& a, const point3& b, float theta, int matType, int matIdx, hittable_list& data) {
+    point3 min = point3(fmin(a.x(), b.x()), fmin(a.y(), b.y()), fmin(a.z(), b.z()));
+    point3 max = point3(fmax(a.x(), b.x()), fmax(a.y(), b.y()), fmax(a.z(), b.z()));
+
+    vec3 dx = vec3(max.x() - min.x(), 0, 0);
+    vec3 dy = vec3(0, max.y() - min.y(), 0);
+    vec3 dz = vec3(0, 0, max.z() - min.z());
+
+    quad front(point3(0,0,0), dx, dy, matType, matIdx); // front
+    quad right(point3(0, 0, 0), -dz, dy, matType, matIdx); // right
+    quad back(point3(0, 0, 0), -dx, dy, matType, matIdx); // back
+    quad left(point3(0, 0, 0), dz, dy, matType, matIdx); // left
+    quad top(point3(0, 0, 0), dx, -dz, matType, matIdx); // top
+    quad bottom(point3(0, 0, 0), dx, dz, matType, matIdx); // bottom
+
+    // The original name of this variable was front_rot, but I had to remember the promise
+    rotate_y rot_front(front.getType(), front.getIdx(), theta);
+    rotate_y rot_right(right.getType(), right.getIdx(), theta);
+    rotate_y rot_back(back.getType(), back.getIdx(), theta);
+    rotate_y rot_left(left.getType(), left.getIdx(), theta);
+    rotate_y rot_top(top.getType(), top.getIdx(), theta);
+    rotate_y rot_bottom(bottom.getType(), bottom.getIdx(), theta);
+    
+    translate tr_front(rot_front.getType(), rot_front.getIdx(), point3(min.x(), min.y(), max.z()));
+    translate tr_right(rot_right.getType(), rot_right.getIdx(), point3(max.x(), min.y(), max.z()));
+    translate tr_back(rot_back.getType(), rot_back.getIdx(), point3(max.x(), min.y(), min.z()));
+    translate tr_left(rot_left.getType(), rot_left.getIdx(), point3(min.x(), min.y(), min.z()));
+    translate tr_top(rot_top.getType(), rot_top.getIdx(), point3(min.x(), max.y(), max.z()));
+    translate tr_bottom(rot_bottom.getType(), rot_bottom.getIdx(), point3(min.x(), min.y(), min.z()));
+
+    data.add(front); data.add(rot_front); data.add(tr_front);
+    data.add(right); data.add(rot_right); data.add(tr_right);
+    data.add(back); data.add(rot_back); data.add(tr_back);
+    data.add(left); data.add(rot_left); data.add(tr_left);
+    data.add(top); data.add(rot_top); data.add(tr_top);
+    data.add(bottom); data.add(rot_bottom); data.add(tr_bottom);
+}
+
 #endif
