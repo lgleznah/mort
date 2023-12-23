@@ -71,7 +71,6 @@ struct Camera {
 
     __device__ color ray_color(const ray& r, curandState* states, int idx, int x, int y, hittable_list world) {
 		hit_record rec;
-		bool hit = false;
 
 		int iter = 0;
 		ray current_ray = r;
@@ -80,7 +79,6 @@ struct Camera {
 		color finalValue;
 
 		while (iter < bounce_limit) {
-			hit = false;
 			if (world.hit(current_ray, 0.001, INFINITY, rec)) {
 				// If hit, continue recursion after computing scatter color
 				ray scattered;

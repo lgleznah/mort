@@ -112,7 +112,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="camera.cuh" />
-    <ClInclude Include="hittable.cuh" />
     <ClInclude Include="hit_record.cuh" />
     <ClInclude Include="hittable_list.cuh" />
     <ClInclude Include="img_loader.h" />
