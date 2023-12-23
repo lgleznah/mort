@@ -380,13 +380,13 @@ void cornell_box(hittable_list& data, Camera& cam) {
 	data.add(quad(point3(555, 555, 555), vec3(-555, 0, 0), vec3(0, 0, -555), white_wall.getType(), white_wall.getIdx()));
 	data.add(quad(point3(0, 0, 555), vec3(555, 0, 0), vec3(0, 555, 0), white_wall.getType(), white_wall.getIdx()));
 
-	rotated_box(point3(130, 0, 65), point3(295, 165, 230), 15, white_wall.getType(), white_wall.getIdx(), data);
-	rotated_box(point3(265, 0, 295), point3(430, 330, 460), -18, white_wall.getType(), white_wall.getIdx(), data);
+	rotated_box(point3(165, 330, 165), vec3(265, 0, 295), 15, white_wall.getType(), white_wall.getIdx(), data);
+	rotated_box(point3(165, 165, 165), vec3(130, 0, 65), -18, white_wall.getType(), white_wall.getIdx(), data);
 
 	cam.aspect_ratio = 1.0;
 	cam.image_width = 800;
-	cam.samples_per_pixel = 1000;
-	cam.bounce_limit = 500;
+	cam.samples_per_pixel = 10000;
+	cam.bounce_limit = 50;
 	cam.background = color(0, 0, 0);
 
 	cam.vfov = 40;

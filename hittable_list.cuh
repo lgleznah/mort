@@ -147,7 +147,7 @@ struct hittable_list {
 			auto closest_so_far = t_max;
 
 			for (uint16_t i = 0; i < num_spheres; i++) {
-				if (dev_spheres[i].hit(r, t_min, closest_so_far, temp_rec)) {
+				if (!dev_spheres[i].skip && dev_spheres[i].hit(r, t_min, closest_so_far, temp_rec)) {
 					hit_anything = true;
 					closest_so_far = temp_rec.t;
 					rec = temp_rec;
@@ -155,7 +155,23 @@ struct hittable_list {
 			}
 
 			for (uint16_t i = 0; i < num_quads; i++) {
-				if (dev_quads[i].hit(r, t_min, closest_so_far, temp_rec)) {
+				if (!dev_quads[i].skip && dev_quads[i].hit(r, t_min, closest_so_far, temp_rec)) {
+					hit_anything = true;
+					closest_so_far = temp_rec.t;
+					rec = temp_rec;
+				}
+			}
+
+			for (uint16_t i = 0; i < num_translates; i++) {
+				if (!dev_translates[i].skip && dev_translates[i].hit(r, t_min, closest_so_far, temp_rec)) {
+					hit_anything = true;
+					closest_so_far = temp_rec.t;
+					rec = temp_rec;
+				}
+			}
+
+			for (uint16_t i = 0; i < num_rotate_y; i++) {
+				if (!dev_rotate_y[i].skip && dev_rotate_y[i].hit(r, t_min, closest_so_far, temp_rec)) {
 					hit_anything = true;
 					closest_so_far = temp_rec.t;
 					rec = temp_rec;

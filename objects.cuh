@@ -22,17 +22,19 @@ struct sphere {
 		sphere() {}
 
 		__host__ 
-		sphere(point3 cen, float r, int material_type, int material_idx) : center1(cen), radius(r), mat_type(material_type), mat_idx(material_idx), moves(false) {
+		sphere(point3 cen, float r, int material_type, int material_idx, bool _skip=false) : center1(cen), radius(r), mat_type(material_type), mat_idx(material_idx), moves(false) {
 			auto rvec = vec3(radius, radius, radius);
 			idx = global_idx++;
+			skip = _skip;
 		}
 
 		__host__ 
-		sphere(point3 cen1, point3 cen2, float r, int material_type, int material_idx) : center1(cen1), radius(r), mat_type(material_type), mat_idx(material_idx) {
+		sphere(point3 cen1, point3 cen2, float r, int material_type, int material_idx, bool _skip = false) : center1(cen1), radius(r), mat_type(material_type), mat_idx(material_idx) {
 			moves = true;
 			center_vec = cen2 - cen1;
 			auto rvec = vec3(radius, radius, radius);
 			idx = global_idx++;
+			skip = _skip;
 		}
 
 		point3 center1;
@@ -46,6 +48,7 @@ struct sphere {
 
 		int idx;
 		static int global_idx;
+		bool skip;
 
 		int getType() const { return OBJ_SPHERE; }
 		int getIdx() const { return idx; }
@@ -107,7 +110,7 @@ struct quad {
 		quad() {}
 		
 		__host__
-		quad(const point3& _Q, const point3& _u, const point3& _v, int material_type, int material_index)
+		quad(const point3& _Q, const point3& _u, const point3& _v, int material_type, int material_index, bool _skip=false)
 			: Q(_Q), u(_u), v(_v), mat_type(material_type), mat_idx(material_index) 
 		{
 			vec3 n = cross(u, v);
@@ -115,6 +118,7 @@ struct quad {
 			D = dot(normal, Q);
 			w = n / dot(n,n);
 			idx = global_idx++;
+			skip = _skip;
 		}
 
 		int getType() const { return OBJ_QUAD; }
@@ -147,7 +151,7 @@ struct quad {
 			return true;
 		}
 
-	private:
+	public:
 		point3 Q;
 		vec3 u, v;
 		vec3 normal;
@@ -157,6 +161,7 @@ struct quad {
 		int mat_idx;
 		int idx;
 		static int global_idx;
+		bool skip;
 };
 
 struct translate {
@@ -165,8 +170,9 @@ struct translate {
 		translate() {}
 
 		__host__
-		translate(int _obj_type, int _obj_idx, const vec3& displacement) : obj_type(_obj_type), obj_idx(_obj_idx), offset(displacement) {
+		translate(int _obj_type, int _obj_idx, const vec3& displacement, bool _skip=false) : obj_type(_obj_type), obj_idx(_obj_idx), offset(displacement) {
 			idx = global_idx++;
+			skip = _skip;
 		}
 
 		int getType() const { return OBJ_TRANSLATE; }
@@ -176,21 +182,21 @@ struct translate {
 		bool hit(const ray& r, float t_min, float t_max, hit_record& rec) const {
 			ray offset_r(r.origin() - offset, r.direction(), r.time());
 
-			if (!hitDispatch(obj_type, obj_idx, r, t_min, t_max, rec)) {
+			if (!hitDispatch(obj_type, obj_idx, offset_r, t_min, t_max, rec)) {
 				return false;
 			}
 
 			rec.p += offset;
 			return true;
-
 		}
 
-	private:
+	public:
 		int obj_type, obj_idx;
 		vec3 offset;
 
 		int idx;
 		static int global_idx;
+		bool skip;
 };
 
 struct rotate_y {
@@ -199,11 +205,12 @@ struct rotate_y {
 		rotate_y() {}
 
 		__host__
-		rotate_y(int _obj_type, int _obj_idx, float theta) : obj_type(_obj_type), obj_idx(_obj_idx) {
+		rotate_y(int _obj_type, int _obj_idx, float theta, bool _skip=false) : obj_type(_obj_type), obj_idx(_obj_idx) {
 			float radians = theta * 3.1415926535897932385 / 180.0;;
 			sin_theta = sin(radians);
 			cos_theta = cos(radians);
 			idx = global_idx++;
+			skip = _skip;
 		}
 
 		int getType() const { return OBJ_ROTATE_Y; }
@@ -224,7 +231,7 @@ struct rotate_y {
 			ray rotated_r(origin, direction, r.time());
 
 			// Determine where (if any) an intersection occurs in object space
-			if (!hitDispatch(obj_type, obj_idx, r, t_min, t_max, rec))
+			if (!hitDispatch(obj_type, obj_idx, rotated_r, t_min, t_max, rec))
 				return false;
 
 			// Change the intersection point from object space to world space
@@ -243,12 +250,13 @@ struct rotate_y {
 			return true;
 		}
 
-	private:
+	public:
 		int obj_type, obj_idx;
 		float sin_theta, cos_theta;
 
 		int idx;
 		static int global_idx;
+		bool skip;
 };
 
 int sphere::global_idx = 0;
