@@ -12,8 +12,9 @@
 #define OBJ_QUAD 2
 #define OBJ_TRANSLATE 3
 #define OBJ_ROTATE_Y 4
+#define OBJ_CONSTANT_MEDIUM 5
 
-bool hitDispatch(int objType, int objIdx, const ray& r, float t_min, float t_max, hit_record& rec);
+bool hitDispatch(int objType, int objIdx, const ray& r, float t_min, float t_max, hit_record& rec, curandState* states, int idx);
 
 struct sphere {
 
@@ -179,10 +180,10 @@ struct translate {
 		int getIdx() const { return idx; }
 
 		__device__
-		bool hit(const ray& r, float t_min, float t_max, hit_record& rec) const {
+		bool hit(const ray& r, float t_min, float t_max, hit_record& rec, curandState* states, int idx) const {
 			ray offset_r(r.origin() - offset, r.direction(), r.time());
 
-			if (!hitDispatch(obj_type, obj_idx, offset_r, t_min, t_max, rec)) {
+			if (!hitDispatch(obj_type, obj_idx, offset_r, t_min, t_max, rec, states, idx)) {
 				return false;
 			}
 
@@ -217,7 +218,7 @@ struct rotate_y {
 		int getIdx() const { return idx; }
 
 		__device__
-		bool hit(const ray& r, float t_min, float t_max, hit_record& rec) const {
+		bool hit(const ray& r, float t_min, float t_max, hit_record& rec, curandState* states, int idx) const {
 			// Change the ray from world space to object space
 			auto origin = r.origin();
 			auto direction = r.direction();
@@ -231,7 +232,7 @@ struct rotate_y {
 			ray rotated_r(origin, direction, r.time());
 
 			// Determine where (if any) an intersection occurs in object space
-			if (!hitDispatch(obj_type, obj_idx, rotated_r, t_min, t_max, rec))
+			if (!hitDispatch(obj_type, obj_idx, rotated_r, t_min, t_max, rec, states, idx))
 				return false;
 
 			// Change the intersection point from object space to world space
@@ -259,47 +260,162 @@ struct rotate_y {
 		bool skip;
 };
 
+struct constant_medium {
+	public:
+		__host__
+		constant_medium() {}
+
+		__host__
+		constant_medium(int _objType, int _objIdx, float d, int _matType, int _matIdx, bool _skip) {
+			obj_type = _objType;
+			obj_idx = _objIdx;
+			neg_inv_density = -(1.0 / d);
+			mat_type = _matType;
+			mat_idx = _matIdx;
+			idx = global_idx++;
+			skip = _skip;
+		}
+
+		__device__
+		bool hit(const ray& r, float t_min, float t_max, hit_record& rec, curandState* states, int idx) const  {
+			hit_record rec1, rec2;
+
+			if (!hitDispatch(obj_type, obj_idx, r, -CUDART_INF_F, CUDART_INF_F, rec1, states, idx)) {
+				return false;
+			}
+
+			if (!hitDispatch(obj_type, obj_idx, r, rec1.t + 0.0001, CUDART_INF_F, rec2, states, idx)) {
+				return false;
+			}
+
+
+			if (rec1.t < t_min) rec1.t = t_min;
+			if (rec2.t > t_max) rec2.t = t_max;
+
+			if (rec1.t >= rec2.t)
+				return false;
+
+			if (rec1.t < 0)
+				rec1.t = 0;
+
+			auto ray_length = r.direction().length();
+			auto distance_inside_boundary = (rec2.t - rec1.t) * ray_length;
+			auto hit_distance = neg_inv_density * log(random_float(states, idx));
+
+			if (hit_distance > distance_inside_boundary)
+				return false;
+
+			rec.t = rec1.t + hit_distance / ray_length;
+			rec.p = r.at(rec.t);
+
+			rec.normal = vec3(1, 0, 0);  // arbitrary
+			rec.front_face = true;     // also arbitrary
+			rec.mat_type = mat_type;
+			rec.mat_idx = mat_idx;
+
+			return true;
+		}
+
+
+	public:
+		int obj_type, obj_idx;
+		double neg_inv_density;
+		int mat_type, mat_idx;
+
+		int idx;
+		static int global_idx;
+		bool skip;
+};
+
 int sphere::global_idx = 0;
 int quad::global_idx = 0;
 int translate::global_idx = 0;
 int rotate_y::global_idx = 0;
+int constant_medium::global_idx = 0;
 
 #define NUM_SPHERES 50
-__constant__ sphere dev_spheres[NUM_SPHERES];
+__constant__ sphere dev_sphere[NUM_SPHERES];
 
 #define NUM_QUADS 50
-__constant__ quad dev_quads[NUM_QUADS];
+__constant__ quad dev_quad[NUM_QUADS];
 
 #define NUM_TRANSLATE 50
-__constant__ translate dev_translates[NUM_TRANSLATE];
+__constant__ translate dev_translate[NUM_TRANSLATE];
 
 #define NUM_ROTATE_Y 50
 __constant__ rotate_y dev_rotate_y[NUM_ROTATE_Y];
 
-void objectsToDevice(sphere* spheres, int num_spheres, quad* quads, int num_quads, translate* translates, int num_translates, rotate_y* rotate_ys, int num_rotate_ys) {
-	HANDLE_ERROR(cudaMemcpyToSymbol(dev_spheres, spheres, num_spheres * sizeof(sphere), 0, cudaMemcpyHostToDevice));
-	HANDLE_ERROR(cudaMemcpyToSymbol(dev_quads, quads, num_quads * sizeof(quad), 0, cudaMemcpyHostToDevice));
-	HANDLE_ERROR(cudaMemcpyToSymbol(dev_translates, translates, num_translates * sizeof(translate), 0, cudaMemcpyHostToDevice));
-	HANDLE_ERROR(cudaMemcpyToSymbol(dev_rotate_y, rotate_ys, num_rotate_ys * sizeof(rotate_y), 0, cudaMemcpyHostToDevice));
+#define NUM_CONSTANT_MEDIUM 50
+__constant__ constant_medium dev_constant_medium[NUM_CONSTANT_MEDIUM];
+
+struct world_objects {
+	sphere* host_sphere;
+	int num_spheres;
+
+	quad* host_quad;
+	int num_quads;
+
+	translate* host_translate;
+	int num_translates;
+
+	rotate_y* host_rotate_y;
+	int num_rotate_y;
+
+	constant_medium* host_constant_medium;
+	int num_constant_medium;
+
+	void resetCounters() {
+		num_spheres = num_quads = num_translates = num_rotate_y = num_constant_medium = 0;
+	}
+
+	void resetObjs() {
+		resetCounters();
+		free(host_sphere);
+		free(host_quad);
+		free(host_translate);
+		free(host_rotate_y);
+		free(host_constant_medium);
+	}
+	
+	void allocObjs() {
+		resetCounters();
+		host_sphere = (sphere*)malloc(NUM_SPHERES * sizeof(sphere));
+		host_quad = (quad*)malloc(NUM_QUADS * sizeof(quad));
+		host_translate = (translate*)malloc(NUM_TRANSLATE * sizeof(translate));
+		host_rotate_y = (rotate_y*)malloc(NUM_ROTATE_Y * sizeof(rotate_y));
+		host_constant_medium = (constant_medium*)malloc(NUM_CONSTANT_MEDIUM * sizeof(constant_medium));
+	}
+};
+
+void objectsToDevice(world_objects objs) {
+	HANDLE_ERROR(cudaMemcpyToSymbol(dev_sphere, objs.host_sphere, objs.num_spheres * sizeof(sphere), 0, cudaMemcpyHostToDevice));
+	HANDLE_ERROR(cudaMemcpyToSymbol(dev_quad, objs.host_quad, objs.num_quads * sizeof(quad), 0, cudaMemcpyHostToDevice));
+	HANDLE_ERROR(cudaMemcpyToSymbol(dev_translate, objs.host_translate, objs.num_translates * sizeof(translate), 0, cudaMemcpyHostToDevice));
+	HANDLE_ERROR(cudaMemcpyToSymbol(dev_rotate_y, objs.host_rotate_y, objs.num_rotate_y * sizeof(rotate_y), 0, cudaMemcpyHostToDevice));
+	HANDLE_ERROR(cudaMemcpyToSymbol(dev_constant_medium, objs.host_constant_medium, objs.num_constant_medium * sizeof(constant_medium), 0, cudaMemcpyHostToDevice));
 }
 
 __device__
-bool hitDispatch(int objType, int objIdx, const ray& r, float t_min, float t_max, hit_record& rec) {
+bool hitDispatch(int objType, int objIdx, const ray& r, float t_min, float t_max, hit_record& rec, curandState* states, int idx) {
 	switch (objType) {
 		case OBJ_SPHERE:
-			return dev_spheres[objIdx].hit(r, t_min, t_max, rec);
+			return dev_sphere[objIdx].hit(r, t_min, t_max, rec);
 			break;
 
 		case OBJ_QUAD:
-			return dev_quads[objIdx].hit(r, t_min, t_max, rec);
+			return dev_quad[objIdx].hit(r, t_min, t_max, rec);
 			break;
 
 		case OBJ_TRANSLATE:
-			return dev_translates[objIdx].hit(r, t_min, t_max, rec);
+			return dev_translate[objIdx].hit(r, t_min, t_max, rec, states, idx);
 			break;
 
 		case OBJ_ROTATE_Y:
-			return dev_rotate_y[objIdx].hit(r, t_min, t_max, rec);
+			return dev_rotate_y[objIdx].hit(r, t_min, t_max, rec, states, idx);
+			break;
+
+		case OBJ_CONSTANT_MEDIUM:
+			return dev_constant_medium[objIdx].hit(r, t_min, t_max, rec, states, idx);
 			break;
 	}
 

@@ -79,12 +79,12 @@ struct Camera {
 		color finalValue;
 
 		while (iter < bounce_limit) {
-			if (world.hit(current_ray, 0.001, INFINITY, rec)) {
+			if (world.hit(current_ray, 0.001, INFINITY, rec, states, idx)) {
 				// If hit, continue recursion after computing scatter color
 				ray scattered;
 				color attenuation;
-				color emission = world.emit(rec.mat_type, rec.mat_idx, rec.u, rec.v, rec.p);
-				if (world.scatter(current_ray, rec, attenuation, scattered, states, idx)) {
+				color emission = emitDispatch(rec.mat_type, rec.mat_idx, rec.u, rec.v, rec.p);
+				if (scatterDispatch(current_ray, rec, attenuation, scattered, states, idx)) {
 					current_ray = scattered;
 					recursionAttenuation[recursionOffset + iter] = attenuation;
 					recursionEmission[recursionOffset + iter] = emission;
