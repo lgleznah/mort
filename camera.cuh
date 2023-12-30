@@ -69,7 +69,7 @@ struct Camera {
 		defocus_disk_v = v * defocus_radius;
 	}
 
-    __device__ color ray_color(const ray& r, curandState* states, int idx, int x, int y, hittable_list world) {
+    __device__ color ray_color(const ray& r, curandState* states, int idx, int x, int y, world data) {
 		hit_record rec;
 
 		int iter = 0;
@@ -79,7 +79,7 @@ struct Camera {
 		color finalValue;
 
 		while (iter < bounce_limit) {
-			if (world.hit(current_ray, 0.001, INFINITY, rec, states, idx)) {
+			if (data.hit(current_ray, 0.001, INFINITY, rec, states, idx)) {
 				// If hit, continue recursion after computing scatter color
 				ray scattered;
 				color attenuation;
@@ -119,7 +119,7 @@ struct Camera {
 		return finalValue;
 	}
 
-	__device__ void render(uchar4* ptr, curandState* states, hittable_list world) {
+	__device__ void render(uchar4* ptr, curandState* states, world data) {
 		int x = threadIdx.x + blockIdx.x * blockDim.x;
 		int y = threadIdx.y + blockIdx.y * blockDim.y;
 		int offset = x + y * image_width;
@@ -129,7 +129,7 @@ struct Camera {
 		color pixel_color(0, 0, 0);
 		for (int s = 0; s < samples_per_pixel; s++) {
 			ray r = get_ray(x, y, states, offset);
-			pixel_color += ray_color(r, states, offset, x, y, world);
+			pixel_color += ray_color(r, states, offset, x, y, data);
 		}
 
 		auto scale = 1.0 / samples_per_pixel;

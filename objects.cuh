@@ -13,6 +13,7 @@
 #define OBJ_TRANSLATE 3
 #define OBJ_ROTATE_Y 4
 #define OBJ_CONSTANT_MEDIUM 5
+#define OBJ_HITTABLE_LIST 6
 
 bool hitDispatch(int objType, int objIdx, const ray& r, float t_min, float t_max, hit_record& rec, curandState* states, int idx);
 
@@ -277,7 +278,7 @@ struct constant_medium {
 		}
 
 		__device__
-		bool hit(const ray& r, float t_min, float t_max, hit_record& rec, curandState* states, int idx) const  {
+		bool hit(const ray& r, float t_min, float t_max, hit_record& rec, curandState* states, int idx) const {
 			hit_record rec1, rec2;
 
 			if (!hitDispatch(obj_type, obj_idx, r, -CUDART_INF_F, CUDART_INF_F, rec1, states, idx)) {
@@ -316,6 +317,9 @@ struct constant_medium {
 			return true;
 		}
 
+		int getType() const { return OBJ_CONSTANT_MEDIUM; }
+		int getIdx() const { return idx; }
+
 
 	public:
 		int obj_type, obj_idx;
@@ -327,11 +331,61 @@ struct constant_medium {
 		bool skip;
 };
 
+#define LIST_MAX_OBJS 10
+
+struct hittable_list {
+	public:
+		__host__
+		hittable_list() {}
+
+		__host__
+		hittable_list(bool _skip): skip(_skip) { idx = global_idx++; num_objs = 0; }
+
+		__host__
+		void add(int _objType, int _objIdx) {
+			if (num_objs < LIST_MAX_OBJS) {
+				obj_types[num_objs] = _objType;
+				obj_idxs[num_objs] = _objIdx;
+				num_objs += 1;
+			}
+		}
+
+		__device__
+		bool hit(const ray& r, float t_min, float t_max, hit_record& rec, curandState* states, int idx) const {
+			hit_record temp_rec;
+			bool hit_anything = false;
+			auto closest_so_far = t_max;
+
+			for (uint16_t i = 0; i < num_objs; i++) {
+				if (hitDispatch(obj_types[i], obj_idxs[i], r, t_min, closest_so_far, temp_rec, states, idx)) {
+					hit_anything = true;
+					closest_so_far = temp_rec.t;
+					rec = temp_rec;
+				}
+			}
+
+			return hit_anything;
+		}
+
+		int getType() const { return OBJ_HITTABLE_LIST; }
+		int getIdx() const { return idx; }
+
+
+	public:
+		int obj_types[LIST_MAX_OBJS], obj_idxs[LIST_MAX_OBJS];
+		int num_objs;
+
+		int idx;
+		static int global_idx;
+		bool skip;
+};
+
 int sphere::global_idx = 0;
 int quad::global_idx = 0;
 int translate::global_idx = 0;
 int rotate_y::global_idx = 0;
 int constant_medium::global_idx = 0;
+int hittable_list::global_idx = 0;
 
 #define NUM_SPHERES 50
 __constant__ sphere dev_sphere[NUM_SPHERES];
@@ -347,6 +401,9 @@ __constant__ rotate_y dev_rotate_y[NUM_ROTATE_Y];
 
 #define NUM_CONSTANT_MEDIUM 50
 __constant__ constant_medium dev_constant_medium[NUM_CONSTANT_MEDIUM];
+
+#define NUM_HITTABLE_LIST 10
+__constant__ hittable_list dev_hittable_list[NUM_HITTABLE_LIST];
 
 struct world_objects {
 	sphere* host_sphere;
@@ -364,8 +421,11 @@ struct world_objects {
 	constant_medium* host_constant_medium;
 	int num_constant_medium;
 
+	hittable_list* host_hittable_list;
+	int num_hittable_list;
+
 	void resetCounters() {
-		num_spheres = num_quads = num_translates = num_rotate_y = num_constant_medium = 0;
+		num_spheres = num_quads = num_translates = num_rotate_y = num_constant_medium = num_hittable_list = 0;
 	}
 
 	void resetObjs() {
@@ -375,6 +435,7 @@ struct world_objects {
 		free(host_translate);
 		free(host_rotate_y);
 		free(host_constant_medium);
+		free(host_hittable_list);
 	}
 	
 	void allocObjs() {
@@ -384,6 +445,7 @@ struct world_objects {
 		host_translate = (translate*)malloc(NUM_TRANSLATE * sizeof(translate));
 		host_rotate_y = (rotate_y*)malloc(NUM_ROTATE_Y * sizeof(rotate_y));
 		host_constant_medium = (constant_medium*)malloc(NUM_CONSTANT_MEDIUM * sizeof(constant_medium));
+		host_hittable_list = (hittable_list*)malloc(NUM_HITTABLE_LIST * sizeof(hittable_list));
 	}
 };
 
@@ -393,6 +455,7 @@ void objectsToDevice(world_objects objs) {
 	HANDLE_ERROR(cudaMemcpyToSymbol(dev_translate, objs.host_translate, objs.num_translates * sizeof(translate), 0, cudaMemcpyHostToDevice));
 	HANDLE_ERROR(cudaMemcpyToSymbol(dev_rotate_y, objs.host_rotate_y, objs.num_rotate_y * sizeof(rotate_y), 0, cudaMemcpyHostToDevice));
 	HANDLE_ERROR(cudaMemcpyToSymbol(dev_constant_medium, objs.host_constant_medium, objs.num_constant_medium * sizeof(constant_medium), 0, cudaMemcpyHostToDevice));
+	HANDLE_ERROR(cudaMemcpyToSymbol(dev_hittable_list, objs.host_hittable_list, objs.num_hittable_list * sizeof(hittable_list), 0, cudaMemcpyHostToDevice));
 }
 
 __device__
@@ -416,6 +479,10 @@ bool hitDispatch(int objType, int objIdx, const ray& r, float t_min, float t_max
 
 		case OBJ_CONSTANT_MEDIUM:
 			return dev_constant_medium[objIdx].hit(r, t_min, t_max, rec, states, idx);
+			break;
+
+		case OBJ_HITTABLE_LIST:
+			return dev_hittable_list[objIdx].hit(r, t_min, t_max, rec, states, idx);
 			break;
 	}
 

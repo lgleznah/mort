@@ -13,10 +13,10 @@
 
 using std::vector;
 
-struct hittable_list {
+struct world {
 
 	public:
-		__host__  hittable_list() { 
+		__host__  world() { 
 			objs.allocObjs();
 			mats.allocMats();
 			texs.allocTexs();
@@ -40,6 +40,10 @@ struct hittable_list {
 
 		void add(constant_medium object) {
 			objs.host_constant_medium[objs.num_constant_medium++] = object;
+		}
+
+		void add(hittable_list object) {
+			objs.host_hittable_list[objs.num_hittable_list++] = object;
 		}
 
 		void add(lambertian mat) {
@@ -129,6 +133,14 @@ struct hittable_list {
 
 			for (uint16_t i = 0; i < objs.num_constant_medium; i++) {
 				if (!dev_constant_medium[i].skip && dev_constant_medium[i].hit(r, t_min, closest_so_far, temp_rec, states, idx)) {
+					hit_anything = true;
+					closest_so_far = temp_rec.t;
+					rec = temp_rec;
+				}
+			}
+
+			for (uint16_t i = 0; i < objs.num_hittable_list; i++) {
+				if (!dev_hittable_list[i].skip && dev_hittable_list[i].hit(r, t_min, closest_so_far, temp_rec, states, idx)) {
 					hit_anything = true;
 					closest_so_far = temp_rec.t;
 					rec = temp_rec;
