@@ -15,6 +15,7 @@
 #define MAT_DIFFUSE_LIGHT 4
 #define MAT_ISOTROPIC 5
 
+
 struct lambertian {
 	public:
 		int texType, texIdx;

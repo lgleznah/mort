@@ -37,10 +37,10 @@ struct DataBlock {
 	Camera cam;
 	curandState* rand_states;
 	int prevMouseX, prevMouseY;
-	hittable_list data;
+	world data;
 };
 
-__global__ void renderKernel(Camera camera, uchar4* ptr, curandState* states, hittable_list world) {
+__global__ void renderKernel(Camera camera, uchar4* ptr, curandState* states, world world) {
 	camera.render(ptr, states, world);
 }
 
@@ -124,7 +124,7 @@ void anim_exit(DataBlock* d) {
 	HANDLE_ERROR(cudaEventDestroy(d->stop));
 }
 
-void random_spheres(hittable_list& data, Camera& cam) {
+void random_spheres(world& data, Camera& cam) {
 	solid_color checker1(color(.2, .3, .1));
 	solid_color checker2(color(.9, .9, .9));
 	checker_texture checker(0.32, checker1.getType(), checker1.getIdx(), checker2.getType(), checker2.getIdx());
@@ -199,7 +199,7 @@ void random_spheres(hittable_list& data, Camera& cam) {
 	return;
 }
 
-void two_spheres(hittable_list& data, Camera& cam) {
+void two_spheres(world& data, Camera& cam) {
 	solid_color checker1(color(.2, .3, .1));
 	solid_color checker2(color(.9, .9, .9));
 	checker_texture checker(0.32, checker1.getType(), checker1.getIdx(), checker2.getType(), checker2.getIdx());
@@ -224,7 +224,7 @@ void two_spheres(hittable_list& data, Camera& cam) {
 	cam.defocus_angle = 0;
 }
 
-void earth(hittable_list& data, Camera& cam) {
+void earth(world& data, Camera& cam) {
 	image_texture earth_texture("imgs/earthmap.jpg");
 	lambertian earth_surface(earth_texture.getType(), earth_texture.getIdx());
 	sphere globe(point3(0,0,0), 2, earth_surface.getType(), earth_surface.getIdx());
@@ -245,7 +245,7 @@ void earth(hittable_list& data, Camera& cam) {
 	cam.defocus_angle = 0;
 }
 
-void two_perlin_spheres(hittable_list& data, Camera& cam) {
+void two_perlin_spheres(world& data, Camera& cam) {
 	noise_texture pertext(4.0);
 	lambertian mat(pertext.getType(), pertext.getIdx());
 	sphere s1(point3(0, -1000, 0), 1000, mat.getType(), mat.getIdx());
@@ -268,7 +268,7 @@ void two_perlin_spheres(hittable_list& data, Camera& cam) {
 	cam.defocus_angle = 0;
 }
 
-void quads(hittable_list& data, Camera& cam) {
+void quads(world& data, Camera& cam) {
 	solid_color red(color(1.0, 0.2, 0.2));
 	solid_color green(color(0.2, 1.0, 0.2));
 	solid_color blue(color(0.2, 0.2, 1.0));
@@ -318,7 +318,7 @@ void quads(hittable_list& data, Camera& cam) {
 	cam.defocus_angle = 0;
 }
 
-void simple_light(hittable_list& data, Camera& cam) {
+void simple_light(world& data, Camera& cam) {
 
 	noise_texture pertext(4);
 	lambertian permat(pertext.getType(), pertext.getIdx());
@@ -352,7 +352,7 @@ void simple_light(hittable_list& data, Camera& cam) {
 	cam.defocus_angle = 0;
 }
 
-void cornell_box(hittable_list& data, Camera& cam) {
+void cornell_box(world& data, Camera& cam) {
 	solid_color red(color(.65, .05, .05));
 	solid_color white(color(.73, .73, .73));
 	solid_color green(color(.12, .45, .15));
@@ -397,7 +397,7 @@ void cornell_box(hittable_list& data, Camera& cam) {
 	cam.defocus_angle = 0;
 }
 
-void cornell_smoke(hittable_list& data, Camera& cam) {
+/*void cornell_smoke(world& data, Camera& cam) {
 	solid_color red(color(.65, .05, .05));
 	solid_color white(color(.73, .73, .73));
 	solid_color green(color(.12, .45, .15));
@@ -440,12 +440,12 @@ void cornell_smoke(hittable_list& data, Camera& cam) {
 	cam.vup = vec3(0, 1, 0);
 
 	cam.defocus_angle = 0;
-}
+}*/
 
 int main(void) {
 	// Scene setup
 	Camera cam;
-	hittable_list data;
+	world data;
 
 	int scene_idx = 7;
 
