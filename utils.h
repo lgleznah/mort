@@ -42,7 +42,7 @@ __device__ inline float linear_to_gamma(float color) {
     return sqrt(color);
 }
 
-void box(const point3& a, const point3& b, int matType, int matIdx, hittable_list& data) {
+void box(const point3& a, const point3& b, int matType, int matIdx, world& data) {
     point3 min = point3(fmin(a.x(), b.x()), fmin(a.y(), b.y()), fmin(a.z(), b.z()));
     point3 max = point3(fmax(a.x(), b.x()), fmax(a.y(), b.y()), fmax(a.z(), b.z()));
 
@@ -60,7 +60,7 @@ void box(const point3& a, const point3& b, int matType, int matIdx, hittable_lis
     return;
 }
 
-void rotated_box(const point3& size, const point3& translation, float theta, int matType, int matIdx, hittable_list& data) {
+void rotated_box(const point3& size, const point3& translation, float theta, int matType, int matIdx, world& data) {
 
     vec3 dx = vec3(size.x(), 0, 0);
     vec3 dy = vec3(0, size.y(), 0);
@@ -73,27 +73,50 @@ void rotated_box(const point3& size, const point3& translation, float theta, int
     quad top(point3(0, size.y(), size.z()), dx, -dz, matType, matIdx, true); // top
     quad bottom(point3(0, 0, 0), dx, dz, matType, matIdx, true); // bottom
 
-    // The original name of this variable was front_rot, but I had to remember the promise
-    rotate_y rot_front(front.getType(), front.getIdx(), theta, true);
-    rotate_y rot_right(right.getType(), right.getIdx(), theta, true);
-    rotate_y rot_back(back.getType(), back.getIdx(), theta, true);
-    rotate_y rot_left(left.getType(), left.getIdx(), theta, true);
-    rotate_y rot_top(top.getType(), top.getIdx(), theta, true);
-    rotate_y rot_bottom(bottom.getType(), bottom.getIdx(), theta, true);
-    
-    translate tr_front(rot_front.getType(), rot_front.getIdx(), translation);
-    translate tr_right(rot_right.getType(), rot_right.getIdx(), translation);
-    translate tr_back(rot_back.getType(), rot_back.getIdx(), translation);
-    translate tr_left(rot_left.getType(), rot_left.getIdx(), translation);
-    translate tr_top(rot_top.getType(), rot_top.getIdx(), translation);
-    translate tr_bottom(rot_bottom.getType(), rot_bottom.getIdx(), translation);
+    // Create list of hittables for box sides
+    hittable_list box(true);
+    box.add(front.getType(), front.getIdx());
+    box.add(right.getType(), right.getIdx());
+    box.add(back.getType(), back.getIdx());
+    box.add(left.getType(), left.getIdx());
+    box.add(top.getType(), top.getIdx());
+    box.add(bottom.getType(), bottom.getIdx());
 
-    data.add(front); data.add(rot_front); data.add(tr_front);
-    data.add(right); data.add(rot_right); data.add(tr_right);
-    data.add(back); data.add(rot_back); data.add(tr_back);
-    data.add(left); data.add(rot_left); data.add(tr_left);
-    data.add(top); data.add(rot_top); data.add(tr_top);
-    data.add(bottom); data.add(rot_bottom); data.add(tr_bottom);
+    rotate_y rot(box.getType(), box.getIdx(), theta, true);
+    translate tr(rot.getType(), rot.getIdx(), translation);
+
+    data.add(front); data.add(right); data.add(back); data.add(left); data.add(top); data.add(bottom);
+    data.add(box); data.add(rot); data.add(tr);
+}
+
+void rotated_smoke_box(const point3& size, const point3& translation, float theta, float d, int matType, int matIdx, world& data) {
+
+    vec3 dx = vec3(size.x(), 0, 0);
+    vec3 dy = vec3(0, size.y(), 0);
+    vec3 dz = vec3(0, 0, size.z());
+
+    quad front(point3(0, 0, size.z()), dx, dy, matType, matIdx, true); // front
+    quad right(point3(size.x(), 0, size.z()), -dz, dy, matType, matIdx, true); // right
+    quad back(point3(size.x(), 0, 0), -dx, dy, matType, matIdx, true); // back
+    quad left(point3(0, 0, 0), dz, dy, matType, matIdx, true); // left
+    quad top(point3(0, size.y(), size.z()), dx, -dz, matType, matIdx, true); // top
+    quad bottom(point3(0, 0, 0), dx, dz, matType, matIdx, true); // bottom
+
+    // Create list of hittables for box sides
+    hittable_list box(true);
+    box.add(front.getType(), front.getIdx());
+    box.add(right.getType(), right.getIdx());
+    box.add(back.getType(), back.getIdx());
+    box.add(left.getType(), left.getIdx());
+    box.add(top.getType(), top.getIdx());
+    box.add(bottom.getType(), bottom.getIdx());
+
+    rotate_y rot(box.getType(), box.getIdx(), theta, true);
+    translate tr(rot.getType(), rot.getIdx(), translation, true);
+    constant_medium cm(tr.getType(), tr.getIdx(), d, matType, matIdx);
+
+    data.add(front); data.add(right); data.add(back); data.add(left); data.add(top); data.add(bottom);
+    data.add(box); data.add(rot); data.add(tr); data.add(cm);
 }
 
 #endif

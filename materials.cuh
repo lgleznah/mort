@@ -13,6 +13,8 @@
 #define MAT_METAL 2
 #define MAT_DIELECTRIC 3
 #define MAT_DIFFUSE_LIGHT 4
+#define MAT_ISOTROPIC 5
+
 
 struct lambertian {
 	public:
@@ -139,9 +141,153 @@ struct diffuse_light {
 		int getIdx() const { return idx; }
 };
 
+struct isotropic {
+	public:
+		int texType, texIdx;
+
+		int idx;
+		static int global_idx;
+
+		__host__
+		isotropic() {}
+
+		__host__
+		isotropic(int _texType, int _texIdx) : texType(_texType), texIdx(_texIdx) { idx = global_idx++; }
+
+		__device__
+		bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, curandState* states, int idx) const {
+			scattered = ray(rec.p, random_in_unit_sphere(states, idx), r_in.time());
+			attenuation = valueDispatch(texType, texIdx, rec.u, rec.v, rec.p);
+			return true;
+		}
+
+		__device__
+		color emitted(float u, float v, const point3& p) const {
+			return color(0.0, 0.0, 0.0);
+		}
+
+		int getType() const { return MAT_ISOTROPIC; }
+		int getIdx() const { return idx; }
+};
+
 int lambertian::global_idx = 0;
 int metal::global_idx = 0;
 int dielectric::global_idx = 0;
 int diffuse_light::global_idx = 0;
+int isotropic::global_idx = 0;
+
+#define NUM_LAMBERTIANS 50
+__constant__ lambertian dev_lambertian[NUM_LAMBERTIANS];
+
+#define NUM_METALS 100
+__constant__ metal dev_metal[NUM_METALS];
+
+#define NUM_DIELECTRICS 100
+__constant__ dielectric dev_dielectric[NUM_DIELECTRICS];
+
+#define NUM_DIFFUSE_LIGHTS 100
+__constant__ diffuse_light dev_diffuse_light[NUM_DIFFUSE_LIGHTS];
+
+#define NUM_ISOTROPICS 100
+__constant__ isotropic dev_isotropic[NUM_DIFFUSE_LIGHTS];
+
+struct world_materials {
+	lambertian* host_lambertian;
+	int num_lambertians;
+
+	metal* host_metal;
+	int num_metals;
+
+	dielectric* host_dielectric;
+	int num_dielectrics;
+
+	diffuse_light* host_diffuse_light;
+	int num_diffuse_lights;
+
+	isotropic* host_isotropic;
+	int num_isotropics;
+
+	void resetCounters() {
+		num_lambertians = num_metals = num_dielectrics = num_diffuse_lights = num_isotropics = 0;
+	}
+
+	void resetMats() {
+		resetCounters();
+		free(host_lambertian);
+		free(host_metal);
+		free(host_dielectric);
+		free(host_diffuse_light);
+		free(host_isotropic);
+	}
+
+	void allocMats() {
+		resetCounters();
+		host_lambertian = (lambertian*)malloc(NUM_LAMBERTIANS * sizeof(lambertian));
+		host_metal = (metal*)malloc(NUM_METALS * sizeof(metal));
+		host_dielectric = (dielectric*)malloc(NUM_DIELECTRICS * sizeof(dielectric));
+		host_diffuse_light = (diffuse_light*)malloc(NUM_DIFFUSE_LIGHTS * sizeof(diffuse_light));
+		host_isotropic = (isotropic*)malloc(NUM_ISOTROPICS * sizeof(isotropic));
+	}
+};
+
+void materialsToDevice(world_materials mats) {
+	HANDLE_ERROR(cudaMemcpyToSymbol(dev_lambertian, mats.host_lambertian, mats.num_lambertians * sizeof(lambertian), 0, cudaMemcpyHostToDevice));
+	HANDLE_ERROR(cudaMemcpyToSymbol(dev_metal, mats.host_metal, mats.num_metals * sizeof(metal), 0, cudaMemcpyHostToDevice));
+	HANDLE_ERROR(cudaMemcpyToSymbol(dev_dielectric, mats.host_dielectric, mats.num_dielectrics * sizeof(dielectric), 0, cudaMemcpyHostToDevice));
+	HANDLE_ERROR(cudaMemcpyToSymbol(dev_diffuse_light, mats.host_diffuse_light, mats.num_diffuse_lights * sizeof(diffuse_light), 0, cudaMemcpyHostToDevice));
+	HANDLE_ERROR(cudaMemcpyToSymbol(dev_isotropic, mats.host_isotropic, mats.num_isotropics * sizeof(isotropic), 0, cudaMemcpyHostToDevice));
+}
+
+__device__ 
+bool scatterDispatch(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, curandState* states, int idx) {
+	switch (rec.mat_type) {
+	case MAT_LAMBERTIAN:
+		return dev_lambertian[rec.mat_idx].scatter(r_in, rec, attenuation, scattered, states, idx);
+		break;
+
+	case MAT_METAL:
+		return dev_metal[rec.mat_idx].scatter(r_in, rec, attenuation, scattered, states, idx);
+		break;
+
+	case MAT_DIELECTRIC:
+		return dev_dielectric[rec.mat_idx].scatter(r_in, rec, attenuation, scattered, states, idx);
+		break;
+
+	case MAT_DIFFUSE_LIGHT:
+		return dev_diffuse_light[rec.mat_idx].scatter(r_in, rec, attenuation, scattered, states, idx);
+		break;
+
+	case MAT_ISOTROPIC:
+		return dev_isotropic[rec.mat_idx].scatter(r_in, rec, attenuation, scattered, states, idx);
+	}
+
+	return false;
+}
+
+__device__ 
+color emitDispatch(int mat_type, int mat_idx, const float u, const float v, const point3& p) {
+	switch (mat_type) {
+	case MAT_LAMBERTIAN:
+		return dev_lambertian[mat_idx].emitted(u, v, p);
+		break;
+
+	case MAT_METAL:
+		return dev_metal[mat_idx].emitted(u, v, p);
+		break;
+
+	case MAT_DIELECTRIC:
+		return dev_dielectric[mat_idx].emitted(u, v, p);
+		break;
+
+	case MAT_DIFFUSE_LIGHT:
+		return dev_diffuse_light[mat_idx].emitted(u, v, p);
+		break;
+
+	case MAT_ISOTROPIC:
+		return dev_isotropic[mat_idx].emitted(u, v, p);
+	}
+
+	return color(0.0, 0.0, 0.0);
+}
 
 #endif

@@ -271,46 +271,81 @@ int image_texture::global_idx = 0;
 int noise_texture::global_idx = 0;
 
 
-#define NUM_SOLIDS 400
-__constant__ solid_color dev_solid_colors[NUM_SOLIDS];
+#define NUM_SOLID_COLOR 400
+__constant__ solid_color dev_solid_color[NUM_SOLID_COLOR];
 
-#define NUM_CHECKERS 400
-__constant__ checker_texture dev_checkers[NUM_CHECKERS];
+#define NUM_CHECKER_TEXTURE 400
+__constant__ checker_texture dev_checker_texture[NUM_CHECKER_TEXTURE];
 
-#define NUM_IMAGES 400
-__constant__ image_texture dev_images[NUM_IMAGES];
+#define NUM_IMAGE_TEXTURE 400
+__constant__ image_texture dev_image_texture[NUM_IMAGE_TEXTURE];
 
-#define NUM_NOISE 1
-__constant__ noise_texture dev_noises[NUM_NOISE];
+#define NUM_NOISE_TEXTURE 1
+__constant__ noise_texture dev_noise_texture[NUM_NOISE_TEXTURE];
 
-void texturesToDevice(solid_color* solids, int num_solids, checker_texture* checkers, int num_checkers, image_texture* images, int num_images, noise_texture* noises, int num_noises) {
-	HANDLE_ERROR(cudaMemcpyToSymbol(dev_solid_colors, solids, num_solids * sizeof(solid_color), 0, cudaMemcpyHostToDevice));
-	HANDLE_ERROR(cudaMemcpyToSymbol(dev_checkers, checkers, num_checkers * sizeof(checker_texture), 0, cudaMemcpyHostToDevice));
-	HANDLE_ERROR(cudaMemcpyToSymbol(dev_images, images, num_images * sizeof(image_texture), 0, cudaMemcpyHostToDevice));
-	HANDLE_ERROR(cudaMemcpyToSymbol(dev_noises, noises, num_noises * sizeof(noise_texture), 0, cudaMemcpyHostToDevice));
+struct world_textures {
+	solid_color* host_solid_color;
+	int num_solid_colors;
+
+	checker_texture* host_checker_texture;
+	int num_checker_textures;
+
+	image_texture* host_image_texture;
+	int num_image_textures;
+
+	noise_texture* host_noise_texture;
+	int num_noise_textures;
+
+	void resetCounters() {
+		num_solid_colors = num_checker_textures = num_image_textures = num_noise_textures = 0;
+	}
+
+	void resetTexs() {
+		resetCounters();
+		free(host_solid_color);
+		free(host_checker_texture);
+		free(host_image_texture);
+		free(host_noise_texture);
+	}
+
+	void allocTexs() {
+		resetCounters();
+		host_solid_color = (solid_color*)malloc(NUM_SOLID_COLOR * sizeof(solid_color));
+		host_checker_texture = (checker_texture*)malloc(NUM_CHECKER_TEXTURE * sizeof(checker_texture));
+		host_image_texture = (image_texture*)malloc(NUM_IMAGE_TEXTURE * sizeof(image_texture));
+		host_noise_texture = (noise_texture*)malloc(NUM_NOISE_TEXTURE * sizeof(noise_texture));
+	}
+};
+
+void texturesToDevice(world_textures texs) {
+	HANDLE_ERROR(cudaMemcpyToSymbol(dev_solid_color, texs.host_solid_color, texs.num_solid_colors * sizeof(solid_color), 0, cudaMemcpyHostToDevice));
+	HANDLE_ERROR(cudaMemcpyToSymbol(dev_checker_texture, texs.host_checker_texture, texs.num_checker_textures * sizeof(checker_texture), 0, cudaMemcpyHostToDevice));
+	HANDLE_ERROR(cudaMemcpyToSymbol(dev_image_texture, texs.host_image_texture, texs.num_image_textures * sizeof(image_texture), 0, cudaMemcpyHostToDevice));
+	HANDLE_ERROR(cudaMemcpyToSymbol(dev_noise_texture, texs.host_noise_texture, texs.num_noise_textures * sizeof(noise_texture), 0, cudaMemcpyHostToDevice));
 }
 
 __device__
 color valueDispatch(int texType, int texIdx, float u, float v, const point3& p) {
 	switch (texType) {
 		case TEXTURE_SOLID:
-			return dev_solid_colors[texIdx].value(u, v, p);
+			return dev_solid_color[texIdx].value(u, v, p);
 			break;
 
 		case TEXTURE_CHECKER:
-			return dev_checkers[texIdx].value(u, v, p);
+			return dev_checker_texture[texIdx].value(u, v, p);
 			break;
 
 		case TEXTURE_IMAGE:
-			return dev_images[texIdx].value(u, v, p);
+			return dev_image_texture[texIdx].value(u, v, p);
 			break;
 
 		case TEXTURE_NOISE:
-			return dev_noises[texIdx].value(u, v, p);
+			return dev_noise_texture[texIdx].value(u, v, p);
 			break;
 	}
 
-	return color(1.0, 0.0, 1.0);
+	float error = (float)(((int)(floorf(u * 1000.0))%2) == ((int)(floorf(v * 1000.0))%2));
+	return color(error, 0.0, error);
 }
 
 #endif
