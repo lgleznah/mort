@@ -9,7 +9,7 @@
 #include "gpu_anim.h"
 #include "gl_helper.h"
 
-#include "hittable_list.cuh"
+#include "world.cuh"
 #include "materials.cuh"
 #include "objects.cuh"
 #include "rng.cuh"
@@ -385,7 +385,7 @@ void cornell_box(world& data, Camera& cam) {
 
 	cam.aspect_ratio = 1.0;
 	cam.image_width = 800;
-	cam.samples_per_pixel = 5;
+	cam.samples_per_pixel = 1000;
 	cam.bounce_limit = 50;
 	cam.background = color(0, 0, 0);
 
@@ -397,26 +397,34 @@ void cornell_box(world& data, Camera& cam) {
 	cam.defocus_angle = 0;
 }
 
-/*void cornell_smoke(world& data, Camera& cam) {
+void cornell_smoke(world& data, Camera& cam) {
 	solid_color red(color(.65, .05, .05));
 	solid_color white(color(.73, .73, .73));
 	solid_color green(color(.12, .45, .15));
 	solid_color light(color(15, 15, 10));
+	solid_color black_smoke_color(color(0, 0, 0));
+	solid_color white_smoke_color(color(1, 1, 1));
 
 	lambertian red_wall(red.getType(), red.getIdx());
 	lambertian white_wall(white.getType(), white.getIdx());
 	lambertian green_wall(green.getType(), green.getIdx());
 	diffuse_light lamp(light.getType(), light.getIdx());
+	lambertian black_smoke(black_smoke_color.getType(), black_smoke_color.getIdx());
+	lambertian white_smoke(white_smoke_color.getType(), white_smoke_color.getIdx());
 
 	data.add(red);
 	data.add(white);
 	data.add(green);
 	data.add(light);
+	data.add(black_smoke_color);
+	data.add(white_smoke_color);
 
 	data.add(red_wall);
 	data.add(white_wall);
 	data.add(green_wall);
 	data.add(lamp);
+	data.add(black_smoke);
+	data.add(white_smoke);
 
 	data.add(quad(point3(555, 0, 0), vec3(0, 555, 0), vec3(0, 0, 555), green_wall.getType(), green_wall.getIdx()));
 	data.add(quad(point3(0, 0, 0), vec3(0, 555, 0), vec3(0, 0, 555), red_wall.getType(), red_wall.getIdx()));
@@ -425,13 +433,13 @@ void cornell_box(world& data, Camera& cam) {
 	data.add(quad(point3(555, 555, 555), vec3(-555, 0, 0), vec3(0, 0, -555), white_wall.getType(), white_wall.getIdx()));
 	data.add(quad(point3(0, 0, 555), vec3(555, 0, 0), vec3(0, 555, 0), white_wall.getType(), white_wall.getIdx()));
 
-	rotated_smoke_box(point3(165, 330, 165), vec3(265, 0, 295), 15, white_wall.getType(), white_wall.getIdx(), data);
-	rotated_smoke_box(point3(165, 165, 165), vec3(130, 0, 65), -18, white_wall.getType(), white_wall.getIdx(), data);
+	rotated_smoke_box(point3(165, 330, 165), vec3(265, 0, 295), 15, 0.01, black_smoke.getType(), black_smoke.getIdx(), data);
+	rotated_smoke_box(point3(165, 165, 165), vec3(130, 0, 65), -18, 0.01, white_smoke.getType(), white_smoke.getIdx(), data);
 
 	cam.aspect_ratio = 1.0;
-	cam.image_width = 600;
-	cam.samples_per_pixel = 200;
-	cam.max_depth = 50;
+	cam.image_width = 800;
+	cam.samples_per_pixel = 2000;
+	cam.bounce_limit = 50;
 	cam.background = color(0, 0, 0);
 
 	cam.vfov = 40;
@@ -440,14 +448,138 @@ void cornell_box(world& data, Camera& cam) {
 	cam.vup = vec3(0, 1, 0);
 
 	cam.defocus_angle = 0;
-}*/
+}
+
+void final_scene(world& data, Camera& cam, int image_width, int samples_per_pixel, int max_depth) {
+
+	// Add ground boxes
+	solid_color ground_color(color(0.48, 0.83, 0.53));
+	lambertian ground_mat(ground_color.getType(), ground_color.getIdx());
+	data.add(ground_color);
+	data.add(ground_mat);
+
+	int boxes_per_side = 20;
+	for (int i = 0; i < boxes_per_side; i++) {
+		for (int j = 0; j < boxes_per_side; j++) {
+			auto w = 100.0;
+			auto x0 = -1000.0 + i * w;
+			auto z0 = -1000.0 + j * w;
+			auto y0 = 0.0;
+			auto x1 = x0 + w;
+			auto y1 = random_float(1, 101);
+			auto z1 = z0 + w;
+
+			box(point3(x0, y0, z0), point3(x1, y1, z1), ground_mat.getType(), ground_mat.getIdx(), data);
+		}
+	}
+	
+	// Add light
+	solid_color light_color(color(7, 7, 7));
+	diffuse_light light_mat(light_color.getType(), light_color.getIdx());
+	quad light(point3(123, 554, 147), vec3(300, 0, 0), vec3(0, 0, 265), light_mat.getType(), light_mat.getIdx());
+	data.add(light_color);
+	data.add(light_mat);
+	data.add(light);
+
+	// Add moving sphere
+	vec3 center1 = point3(400, 400, 200);
+	vec3 center2 = center1 + vec3(30, 0, 0);
+	solid_color moving_sphere_color(color(0.7, 0.3, 0.1));
+	lambertian moving_sphere_mat(moving_sphere_color.getType(), moving_sphere_color.getIdx());
+	sphere moving_sphere(center1, center2, 50, moving_sphere_mat.getType(), moving_sphere_mat.getIdx());
+	data.add(moving_sphere_color);
+	data.add(moving_sphere_mat);
+	data.add(moving_sphere);
+
+	// Add crystal sphere
+	dielectric glass_sphere_mat(1.5);
+	sphere glass_sphere(point3(260, 150, 45), 50, glass_sphere_mat.getType(), glass_sphere_mat.getIdx());
+	data.add(glass_sphere_mat);
+	data.add(glass_sphere);
+
+	// Add metal sphere
+	metal metal_sphere_mat(color(0.8, 0.8, 0.9), 1.0);
+	sphere metallic_sphere(point3(0, 150, 145), 50, metal_sphere_mat.getType(), metal_sphere_mat.getIdx());
+	data.add(metal_sphere_mat);
+	data.add(metallic_sphere);
+
+	// Add blue subsurface sphere
+	solid_color subsurface_sphere_color(color(0.2, 0.4, 0.9));
+	lambertian subsurface_sphere_mat(subsurface_sphere_color.getType(), subsurface_sphere_color.getIdx());
+	sphere subsurface_sphere(point3(360, 150, 145), 70, glass_sphere_mat.getType(), glass_sphere_mat.getIdx());
+	constant_medium subsurface_sphere_inside(subsurface_sphere.getType(), subsurface_sphere.getIdx(), 0.2, subsurface_sphere_mat.getType(), subsurface_sphere_mat.getIdx());
+	data.add(subsurface_sphere_color);
+	data.add(subsurface_sphere_mat);
+	data.add(subsurface_sphere);
+	data.add(subsurface_sphere_inside);
+
+	// Add fog
+	solid_color boundary_color(color(1, 1, 1));
+	lambertian boundary_mat(boundary_color.getType(), boundary_color.getIdx());
+	sphere boundary_sphere(point3(0, 0, 0), 5000, glass_sphere_mat.getType(), glass_sphere_mat.getIdx());
+	constant_medium boundary(boundary_sphere.getType(), boundary_sphere.getIdx(), 0.0001, boundary_mat.getType(), boundary_mat.getIdx());
+	data.add(boundary_color);
+	data.add(boundary_mat);
+	data.add(boundary_sphere);
+	data.add(boundary);
+
+	// Add earth sphere
+	image_texture earth_tex("imgs/earthmap.jpg");
+	lambertian earth_mat(earth_tex.getType(), earth_tex.getIdx());
+	sphere earth(point3(400, 200, 400), 100, earth_mat.getType(), earth_mat.getIdx());
+	data.add(earth_tex);
+	data.add(earth_mat);
+	data.add(earth);
+
+	// Add perlin sphere
+	noise_texture noise_tex(0.1);
+	lambertian noise_mat(noise_tex.getType(), noise_tex.getIdx());
+	sphere noise_sphere(point3(220, 280, 300), 80, noise_mat.getType(), noise_mat.getIdx());
+	data.add(noise_tex);
+	data.add(noise_mat);
+	data.add(noise_sphere);
+
+	// Add clusterfuck of spheres
+	solid_color cluster_color(color(.73, .73, .73));
+	lambertian cluster_mat(cluster_color.getType(), cluster_color.getIdx());
+	int ns = 1000;
+	hittable_list cluster_base(true);
+
+	for (int j = 0; j < ns; j++) {
+		sphere cluster_sphere(point3::random(0, 165), 10, cluster_mat.getType(), cluster_mat.getIdx(), true);
+		data.add(cluster_sphere);
+		cluster_base.add(cluster_sphere.getType(), cluster_sphere.getIdx());
+	}
+
+	rotate_y cluster_rotate(cluster_base.getType(), cluster_base.getIdx(), 15, true);
+	translate cluster(cluster_rotate.getType(), cluster_rotate.getIdx(), vec3(-100, 270, 395));
+
+	data.add(cluster_color);
+	data.add(cluster_mat);
+	data.add(cluster_base);
+	data.add(cluster_rotate);
+	data.add(cluster);
+
+	cam.aspect_ratio = 1.0;
+	cam.image_width = image_width;
+	cam.samples_per_pixel = samples_per_pixel;
+	cam.bounce_limit = max_depth;
+	cam.background = color(0, 0, 0);
+
+	cam.vfov = 40;
+	cam.lookfrom = point3(478, 278, -600);
+	cam.lookat = point3(278, 278, 0);
+	cam.vup = vec3(0, 1, 0);
+
+	cam.defocus_angle = 0;
+}
 
 int main(void) {
 	// Scene setup
 	Camera cam;
 	world data;
 
-	int scene_idx = 7;
+	int scene_idx = 9;
 
 	switch(scene_idx) {
 		case 1:
@@ -476,6 +608,18 @@ int main(void) {
 
 		case 7:
 			cornell_box(data, cam);
+			break;
+
+		case 8:
+			cornell_smoke(data, cam);
+			break;
+		
+		case 9:
+			final_scene(data, cam, 800, 1000, 40);
+			break;
+
+		case 10:
+			final_scene(data, cam, 400, 250, 4);
 			break;
 	}
 

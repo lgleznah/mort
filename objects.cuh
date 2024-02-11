@@ -267,7 +267,7 @@ struct constant_medium {
 		constant_medium() {}
 
 		__host__
-		constant_medium(int _objType, int _objIdx, float d, int _matType, int _matIdx, bool _skip) {
+		constant_medium(int _objType, int _objIdx, float d, int _matType, int _matIdx, bool _skip=false) {
 			obj_type = _objType;
 			obj_idx = _objIdx;
 			neg_inv_density = -(1.0 / d);
@@ -331,7 +331,7 @@ struct constant_medium {
 		bool skip;
 };
 
-#define LIST_MAX_OBJS 10
+#define LIST_MAX_OBJS 1000
 
 struct hittable_list {
 	public:
@@ -387,11 +387,11 @@ int rotate_y::global_idx = 0;
 int constant_medium::global_idx = 0;
 int hittable_list::global_idx = 0;
 
-#define NUM_SPHERES 50
-__constant__ sphere dev_sphere[NUM_SPHERES];
+#define NUM_SPHERES 1100
+__device__ sphere dev_sphere[NUM_SPHERES];
 
-#define NUM_QUADS 50
-__constant__ quad dev_quad[NUM_QUADS];
+#define NUM_QUADS 2500
+__device__ quad dev_quad[NUM_QUADS];
 
 #define NUM_TRANSLATE 50
 __constant__ translate dev_translate[NUM_TRANSLATE];
@@ -402,7 +402,7 @@ __constant__ rotate_y dev_rotate_y[NUM_ROTATE_Y];
 #define NUM_CONSTANT_MEDIUM 50
 __constant__ constant_medium dev_constant_medium[NUM_CONSTANT_MEDIUM];
 
-#define NUM_HITTABLE_LIST 10
+#define NUM_HITTABLE_LIST 2
 __constant__ hittable_list dev_hittable_list[NUM_HITTABLE_LIST];
 
 struct world_objects {
