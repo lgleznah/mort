@@ -126,15 +126,19 @@ void anim_exit(DataBlock* d) {
 }
 
 void random_spheres(world& data, Camera& cam) {
+	hittable_list spheres(true);
+
 	solid_color checker1(color(.2, .3, .1));
 	solid_color checker2(color(.9, .9, .9));
 	checker_texture checker(0.32, checker1.getType(), checker1.getIdx(), checker2.getType(), checker2.getIdx());
 	lambertian ground_material(checker.getType(), checker.getIdx());
+	sphere ground_sphere(point3(0, -1000, 0), 1000, ground_material.getType(), ground_material.getIdx(), true);
 	data.add(checker1);
 	data.add(checker2);
 	data.add(checker);
 	data.add(ground_material);
-	data.add(sphere(point3(0, -1000, 0), 1000, ground_material.getType(), ground_material.getIdx()));
+	data.add(ground_sphere);
+	spheres.add(ground_sphere.getType(), ground_sphere.getIdx(), data.objs);
 
 	for (int a = -11; a < 11; a++) {
 		for (int b = -11; b < 11; b++) {
@@ -148,45 +152,63 @@ void random_spheres(world& data, Camera& cam) {
 					auto center2 = center + vec3(0, random_float(0.0, 0.5), 0);
 					solid_color color(albedo);
 					lambertian material(color.getType(), color.getIdx());
+					sphere random_sphere(center, center2, 0.2, material.getType(), material.getIdx(), true);
 					data.add(color);
 					data.add(material);
-					data.add(sphere(center, center2, 0.2, material.getType(), material.getIdx()));
+					data.add(random_sphere);
+					spheres.add(random_sphere.getType(), random_sphere.getIdx(), data.objs);
 				}
 				else if (choose_mat < 0.95) {
 					// metal
 					auto albedo = color::random(0.5, 1);
 					auto fuzz = random_float(0.0, 0.5);
 					metal material(albedo, fuzz);
+					sphere random_sphere(center, 0.2, material.getType(), material.getIdx(), true);
 					data.add(material);
-					data.add(sphere(center, 0.2, material.getType(), material.getIdx()));
+					data.add(random_sphere);
+					spheres.add(random_sphere.getType(), random_sphere.getIdx(), data.objs);
 				}
 				else {
 					// glass
 					dielectric material(1.5);
+					sphere random_sphere(center, 0.2, material.getType(), material.getIdx(), true);
 					data.add(material);
-					data.add(sphere(center, 0.2, material.getType(), material.getIdx()));
+					data.add(random_sphere);
+					spheres.add(random_sphere.getType(), random_sphere.getIdx(), data.objs);
 				}
 			}
 		}
 	}
 
 	dielectric material1(1.5);
+	sphere dielectric_sphere(point3(0, 1, 0), 1.0, material1.getType(), material1.getIdx(), true);
 	data.add(material1);
-	data.add(sphere(point3(0, 1, 0), 1.0, material1.getType(), material1.getIdx()));
+	data.add(dielectric_sphere);
+	spheres.add(dielectric_sphere.getType(), dielectric_sphere.getIdx(), data.objs);
 
 	solid_color sph_color(color(0.4, 0.2, 0.1));
 	lambertian material2(sph_color.getType(), sph_color.getIdx());
+	sphere lambertian_sphere(point3(-4, 1, 0), 1.0, material2.getType(), material2.getIdx(), true);
 	data.add(sph_color);
 	data.add(material2);
-	data.add(sphere(point3(-4, 1, 0), 1.0, material2.getType(), material2.getIdx()));
+	data.add(lambertian_sphere);
+	spheres.add(lambertian_sphere.getType(), lambertian_sphere.getIdx(), data.objs);
 
 	metal material3(color(0.7, 0.6, 0.5), 0.0);
+	sphere metal_sphere(point3(4, 1, 0), 1.0, material3.getType(), material3.getIdx(), true);
 	data.add(material3);
-	data.add(sphere(point3(4, 1, 0), 1.0, material3.getType(), material3.getIdx()));
+	data.add(metal_sphere);
+	spheres.add(metal_sphere.getType(), metal_sphere.getIdx(), data.objs);
+
+	data.add(spheres);
+
+	bvh bvh_spheres(spheres, data.objs, false);
+	data.add(bvh_spheres);
+	data.bvh_mode = true;
 
 	cam.aspect_ratio = 16.0 / 9.0;
 	cam.image_width = 1200;
-	cam.samples_per_pixel = 1;
+	cam.samples_per_pixel = 10;
 	cam.bounce_limit = 5;
 
 	cam.vfov = 20;
@@ -615,7 +637,7 @@ int main(void) {
 	Camera cam;
 	world data;
 
-	int scene_idx = 11;
+	int scene_idx = 1;
 
 	switch(scene_idx) {
 		case 1:
@@ -675,7 +697,7 @@ int main(void) {
 
 	//// Change maximum CUDA stack size. Required to avoid an unspecified launch failure due to
 	//// maximum stack size getting exceeded.
-	HANDLE_ERROR(cudaDeviceSetLimit(cudaLimitStackSize, 4096));
+	HANDLE_ERROR(cudaDeviceSetLimit(cudaLimitStackSize, 8192));
 
 	//// RNG initialisation
 	curandState* dev_states;

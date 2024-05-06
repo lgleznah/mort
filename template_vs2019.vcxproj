@@ -102,6 +102,7 @@
     <CudaCompile>
       <Runtime>MT</Runtime>
       <TargetMachinePlatform>64</TargetMachinePlatform>
+      <GPUDebugInfo Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</GPUDebugInfo>
     </CudaCompile>
     <CudaLink>
       <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">-lineinfo %(AdditionalOptions)</AdditionalOptions>

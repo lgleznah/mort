@@ -530,7 +530,7 @@ struct bvh {
 		}
 
 		__device__
-		bool recursive_hit(const ray& r, float t_min, float t_max, hit_record& rec, curandState* states, int idx, int bvh_idx) const {			
+		bool recursive_hit(const ray& r, float t_min, float t_max, hit_record& rec, curandState* states, int idx, int bvh_idx) const {		
 			if (!bounding_boxes[bvh_idx].hit(r, t_min, t_max)) {
 				return false;
 			}
