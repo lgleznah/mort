@@ -565,7 +565,7 @@ void final_scene(world& data, Camera& cam, int image_width, int samples_per_pixe
 	solid_color subsurface_sphere_color(color(0.2, 0.4, 0.9));
 	lambertian subsurface_sphere_mat(subsurface_sphere_color.getType(), subsurface_sphere_color.getIdx());
 	sphere subsurface_sphere(point3(360, 150, 145), 70, glass_sphere_mat.getType(), glass_sphere_mat.getIdx());
-	constant_medium subsurface_sphere_inside(subsurface_sphere.getType(), subsurface_sphere.getIdx(), 0.2, subsurface_sphere_mat.getType(), subsurface_sphere_mat.getIdx());
+	constant_medium subsurface_sphere_inside(subsurface_sphere.getType(), subsurface_sphere.getIdx(), 0.2, subsurface_sphere_mat.getType(), subsurface_sphere_mat.getIdx(), data.objs);
 	data.add(subsurface_sphere_color);
 	data.add(subsurface_sphere_mat);
 	data.add(subsurface_sphere);
@@ -575,7 +575,7 @@ void final_scene(world& data, Camera& cam, int image_width, int samples_per_pixe
 	solid_color boundary_color(color(1, 1, 1));
 	lambertian boundary_mat(boundary_color.getType(), boundary_color.getIdx());
 	sphere boundary_sphere(point3(0, 0, 0), 5000, glass_sphere_mat.getType(), glass_sphere_mat.getIdx());
-	constant_medium boundary(boundary_sphere.getType(), boundary_sphere.getIdx(), 0.0001, boundary_mat.getType(), boundary_mat.getIdx());
+	constant_medium boundary(boundary_sphere.getType(), boundary_sphere.getIdx(), 0.0001, boundary_mat.getType(), boundary_mat.getIdx(), data.objs);
 	data.add(boundary_color);
 	data.add(boundary_mat);
 	data.add(boundary_sphere);
@@ -609,8 +609,8 @@ void final_scene(world& data, Camera& cam, int image_width, int samples_per_pixe
 		cluster_base.add(cluster_sphere.getType(), cluster_sphere.getIdx(), data.objs);
 	}
 
-	rotate_y cluster_rotate(cluster_base.getType(), cluster_base.getIdx(), 15, true);
-	translate cluster(cluster_rotate.getType(), cluster_rotate.getIdx(), vec3(-100, 270, 395));
+	rotate_y cluster_rotate(cluster_base.getType(), cluster_base.getIdx(), 15, data.objs, true);
+	translate cluster(cluster_rotate.getType(), cluster_rotate.getIdx(), vec3(-100, 270, 395), data.objs);
 
 	data.add(cluster_color);
 	data.add(cluster_mat);

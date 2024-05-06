@@ -59,4 +59,14 @@ struct aabb {
 	}
 };
 
+__host__
+aabb operator+(const aabb& bbox, const vec3& offset) {
+	return aabb(bbox.x + offset.x(), bbox.y + offset.y(), bbox.z + offset.z());
+}
+
+__host__
+aabb operator+(const vec3& offset, const aabb& bbox) {
+	return bbox + offset;
+}
+
 #endif

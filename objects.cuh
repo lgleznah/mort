@@ -133,6 +133,11 @@ struct quad {
 			w = n / dot(n,n);
 			idx = global_idx++;
 			skip = _skip;
+
+			// Set bounding box
+			auto bbox_diagonal1 = aabb(Q, Q + u + v);
+			auto bbox_diagonal2 = aabb(Q + u, Q + v);
+			bbox = aabb(bbox_diagonal1, bbox_diagonal2);
 		}
 
 		int getType() const { return OBJ_QUAD; }
@@ -170,6 +175,7 @@ struct quad {
 		vec3 u, v;
 		vec3 normal;
 		vec3 w;
+		aabb bbox;
 		float D;
 		int mat_type;
 		int mat_idx;
@@ -184,9 +190,11 @@ struct translate {
 		translate() {}
 
 		__host__
-		translate(int _obj_type, int _obj_idx, const vec3& displacement, bool _skip=false) : obj_type(_obj_type), obj_idx(_obj_idx), offset(displacement) {
+		translate(int _obj_type, int _obj_idx, const vec3& displacement, const world_objects& objs, bool _skip=false) : obj_type(_obj_type), obj_idx(_obj_idx), offset(displacement) {
 			idx = global_idx++;
 			skip = _skip;
+
+			bbox = host_getBboxInfo(_obj_type, _obj_idx, objs) + displacement;
 		}
 
 		int getType() const { return OBJ_TRANSLATE; }
@@ -207,6 +215,7 @@ struct translate {
 	public:
 		int obj_type, obj_idx;
 		vec3 offset;
+		aabb bbox;
 
 		int idx;
 		static int global_idx;
@@ -219,12 +228,39 @@ struct rotate_y {
 		rotate_y() {}
 
 		__host__
-		rotate_y(int _obj_type, int _obj_idx, float theta, bool _skip=false) : obj_type(_obj_type), obj_idx(_obj_idx) {
+		rotate_y(int _obj_type, int _obj_idx, float theta, const world_objects& objs, bool _skip=false) : obj_type(_obj_type), obj_idx(_obj_idx) {
 			float radians = theta * 3.1415926535897932385 / 180.0;;
 			sin_theta = sin(radians);
 			cos_theta = cos(radians);
 			idx = global_idx++;
 			skip = _skip;
+
+			// Compute bounding box
+			bbox = host_getBboxInfo(_obj_type, _obj_idx, objs);
+			point3 pmin(HUGE_VALF, HUGE_VALF, HUGE_VALF);
+			point3 pmax(-HUGE_VALF, -HUGE_VALF, -HUGE_VALF);
+
+			for (int i = 0; i < 2; i++) {
+				for (int j = 0; j < 2; j++) {
+					for (int k = 0; k < 2; k++) {
+						auto x = i * bbox.x.imax + (1 - i) * bbox.x.imin;
+						auto y = j * bbox.y.imax + (1 - j) * bbox.y.imin;
+						auto z = k * bbox.z.imax + (1 - k) * bbox.z.imin;
+
+						auto newx = cos_theta * x + sin_theta * z;
+						auto newz = -sin_theta * x + cos_theta * z;
+
+						vec3 tester(newx, y, newz);
+
+						for (int c = 0; c < 3; c++) {
+							pmin[c] = fmin(pmin[c], tester[c]);
+							pmax[c] = fmax(pmax[c], tester[c]);
+						}
+					}
+				}
+			}
+
+			bbox = aabb(pmin, pmax);
 		}
 
 		int getType() const { return OBJ_ROTATE_Y; }
@@ -267,6 +303,7 @@ struct rotate_y {
 	public:
 		int obj_type, obj_idx;
 		float sin_theta, cos_theta;
+		aabb bbox;
 
 		int idx;
 		static int global_idx;
@@ -279,7 +316,7 @@ struct constant_medium {
 		constant_medium() {}
 
 		__host__
-		constant_medium(int _objType, int _objIdx, float d, int _matType, int _matIdx, bool _skip=false) {
+		constant_medium(int _objType, int _objIdx, float d, int _matType, int _matIdx, const world_objects& objs, bool _skip=false) {
 			obj_type = _objType;
 			obj_idx = _objIdx;
 			neg_inv_density = -(1.0 / d);
@@ -287,6 +324,8 @@ struct constant_medium {
 			mat_idx = _matIdx;
 			idx = global_idx++;
 			skip = _skip;
+
+			bbox = host_getBboxInfo(_objType, _objIdx, objs);
 		}
 
 		__device__
@@ -337,6 +376,7 @@ struct constant_medium {
 		int obj_type, obj_idx;
 		double neg_inv_density;
 		int mat_type, mat_idx;
+		aabb bbox;
 
 		int idx;
 		static int global_idx;
@@ -406,6 +446,8 @@ struct bvh {
 		bvh(hittable_list& list, const struct world_objects& objs, bool _skip): skip(_skip) {
 			int bvh_size = 1;
 			int curr_bvh_idx = 0;
+
+			idx = global_idx++;
 
 			int span_beginnings[MAX_BVH_NODES], span_ends[MAX_BVH_NODES];
 			span_beginnings[0] = 0;
@@ -585,7 +627,7 @@ __constant__ rotate_y dev_rotate_y[NUM_ROTATE_Y];
 __constant__ constant_medium dev_constant_medium[NUM_CONSTANT_MEDIUM];
 
 #define NUM_HITTABLE_LIST 2
-__constant__ hittable_list dev_hittable_list[NUM_HITTABLE_LIST];
+__device__ hittable_list dev_hittable_list[NUM_HITTABLE_LIST];
 
 #define NUM_BVH 2
 __device__ bvh dev_bvh[NUM_BVH];
@@ -683,29 +725,29 @@ bool hitDispatch(int objType, int objIdx, const ray& r, float t_min, float t_max
 __device__
 aabb getBboxInfo(int objType, int objIdx) {
 	switch (objType) {
-	case OBJ_SPHERE:
-		return dev_sphere[objIdx].bbox;
-		break;
+		case OBJ_SPHERE:
+			return dev_sphere[objIdx].bbox;
+			break;
 
-	case OBJ_QUAD:
-		/*return dev_quad[objIdx].hit(r, t_min, t_max, rec);
-		break;*/
+		case OBJ_QUAD:
+			return dev_quad[objIdx].bbox;
+			break;
 
-	case OBJ_TRANSLATE:
-		/*return dev_translate[objIdx].hit(r, t_min, t_max, rec, states, idx);
-		break;*/
+		case OBJ_TRANSLATE:
+			return dev_translate[objIdx].bbox;
+			break;
 
-	case OBJ_ROTATE_Y:
-		/*return dev_rotate_y[objIdx].hit(r, t_min, t_max, rec, states, idx);
-		break;*/
+		case OBJ_ROTATE_Y:
+			return dev_rotate_y[objIdx].bbox;
+			break;
 
-	case OBJ_CONSTANT_MEDIUM:
-		/*return dev_constant_medium[objIdx].hit(r, t_min, t_max, rec, states, idx);
-		break;*/
+		case OBJ_CONSTANT_MEDIUM:
+			return dev_constant_medium[objIdx].bbox;
+			break;
 
-	case OBJ_HITTABLE_LIST:
-		return dev_hittable_list[objIdx].bbox;
-		break;
+		case OBJ_HITTABLE_LIST:
+			return dev_hittable_list[objIdx].bbox;
+			break;
 	}
 }
 
@@ -717,15 +759,19 @@ aabb host_getBboxInfo(int objType, int objIdx, const world_objects& objs) {
 			break;
 
 		case OBJ_QUAD:
+			return objs.host_quad[objIdx].bbox;
 			break;
 
 		case OBJ_TRANSLATE:
+			return objs.host_translate[objIdx].bbox;
 			break;
 
 		case OBJ_ROTATE_Y:
+			return objs.host_rotate_y[objIdx].bbox;
 			break;
 
 		case OBJ_CONSTANT_MEDIUM:
+			return objs.host_constant_medium[objIdx].bbox;
 			break;
 
 		case OBJ_HITTABLE_LIST:

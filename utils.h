@@ -88,8 +88,8 @@ void rotated_box(const point3& size, const point3& translation, float theta, int
     box.add(top.getType(), top.getIdx(), data.objs);
     box.add(bottom.getType(), bottom.getIdx(), data.objs);
 
-    rotate_y rot(box.getType(), box.getIdx(), theta, true);
-    translate tr(rot.getType(), rot.getIdx(), translation);
+    rotate_y rot(box.getType(), box.getIdx(), theta, data.objs, true);
+    translate tr(rot.getType(), rot.getIdx(), translation, data.objs);
 
     data.add(front); data.add(right); data.add(back); data.add(left); data.add(top); data.add(bottom);
     data.add(box); data.add(rot); data.add(tr);
@@ -117,9 +117,9 @@ void rotated_smoke_box(const point3& size, const point3& translation, float thet
     box.add(top.getType(), top.getIdx(), data.objs);
     box.add(bottom.getType(), bottom.getIdx(), data.objs);
 
-    rotate_y rot(box.getType(), box.getIdx(), theta, true);
-    translate tr(rot.getType(), rot.getIdx(), translation, true);
-    constant_medium cm(tr.getType(), tr.getIdx(), d, matType, matIdx);
+    rotate_y rot(box.getType(), box.getIdx(), theta, data.objs, true);
+    translate tr(rot.getType(), rot.getIdx(), translation, data.objs, true);
+    constant_medium cm(tr.getType(), tr.getIdx(), d, matType, matIdx, data.objs);
 
     data.add(front); data.add(right); data.add(back); data.add(left); data.add(top); data.add(bottom);
     data.add(box); data.add(rot); data.add(tr); data.add(cm);

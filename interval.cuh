@@ -38,4 +38,13 @@ class interval {
 		}
 };
 
+
+interval operator+(const interval& ival, double displacement) {
+	return interval(ival.imin + displacement, ival.imax + displacement);
+}
+
+interval operator+(double displacement, const interval& ival) {
+	return ival + displacement;
+}
+
 #endif
