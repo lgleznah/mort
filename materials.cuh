@@ -176,19 +176,19 @@ int dielectric::global_idx = 0;
 int diffuse_light::global_idx = 0;
 int isotropic::global_idx = 0;
 
-#define NUM_LAMBERTIANS 50
+#define NUM_LAMBERTIANS 600
 __constant__ lambertian dev_lambertian[NUM_LAMBERTIANS];
 
 #define NUM_METALS 100
 __constant__ metal dev_metal[NUM_METALS];
 
-#define NUM_DIELECTRICS 100
+#define NUM_DIELECTRICS 50
 __constant__ dielectric dev_dielectric[NUM_DIELECTRICS];
 
-#define NUM_DIFFUSE_LIGHTS 100
+#define NUM_DIFFUSE_LIGHTS 20
 __constant__ diffuse_light dev_diffuse_light[NUM_DIFFUSE_LIGHTS];
 
-#define NUM_ISOTROPICS 100
+#define NUM_ISOTROPICS 20
 __constant__ isotropic dev_isotropic[NUM_DIFFUSE_LIGHTS];
 
 struct world_materials {

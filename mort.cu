@@ -15,6 +15,7 @@
 #include "rng.cuh"
 #include "vec3.cuh"
 #include "camera.cuh"
+#include "aabb.cuh"
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char* file, int line, bool abort = true)
@@ -114,7 +115,7 @@ void update(uchar4* output_bitmap, DataBlock* d, int ticks) {
 	d->totalTime += elapsedTime;
 	++d->frames;
 
-	//printf("Avg. time per frame: %3.1f ms\n", d->totalTime / d->frames);
+	printf("Avg. time per frame: %3.1f ms\n", d->totalTime / d->frames);
 }
 
 void anim_exit(DataBlock* d) {
@@ -185,7 +186,7 @@ void random_spheres(world& data, Camera& cam) {
 
 	cam.aspect_ratio = 16.0 / 9.0;
 	cam.image_width = 1200;
-	cam.samples_per_pixel = 5;
+	cam.samples_per_pixel = 1;
 	cam.bounce_limit = 5;
 
 	cam.vfov = 20;
@@ -222,6 +223,41 @@ void two_spheres(world& data, Camera& cam) {
 	cam.vup = vec3(0, 1, 0);
 
 	cam.defocus_angle = 0;
+}
+
+void out_of_order_spheres(world& data, Camera& cam, int n_spheres) {
+	hittable_list spheres(true);
+
+	for (int i = 0; i < n_spheres; i++) {
+		auto albedo = color::random() * color::random();
+		auto center = vec3(n_spheres - i, n_spheres - i, n_spheres - i);
+		solid_color color(albedo);
+		lambertian material(color.getType(), color.getIdx());
+		sphere test(center, 0.2, material.getType(), material.getIdx(), true);
+		data.add(color);
+		data.add(material);
+		data.add(test);
+		spheres.add(test.getType(), test.getIdx(), data.objs);
+	}
+
+	data.add(spheres);
+	bvh bvh_spheres(spheres, data.objs, false);
+	data.add(bvh_spheres);
+
+	cam.aspect_ratio = 16.0 / 9.0;
+	cam.image_width = 1200;
+	cam.samples_per_pixel = 1;
+	cam.bounce_limit = 5;
+
+	cam.vfov = 20;
+	cam.lookfrom = point3(13, 2, 3);
+	cam.lookat = point3(0, 0, 0);
+	cam.vup = vec3(0, 1, 0);
+
+	cam.defocus_angle = 0.0;
+	cam.focus_dist = 10.0;
+
+	return;
 }
 
 void earth(world& data, Camera& cam) {
@@ -548,7 +584,7 @@ void final_scene(world& data, Camera& cam, int image_width, int samples_per_pixe
 	for (int j = 0; j < ns; j++) {
 		sphere cluster_sphere(point3::random(0, 165), 10, cluster_mat.getType(), cluster_mat.getIdx(), true);
 		data.add(cluster_sphere);
-		cluster_base.add(cluster_sphere.getType(), cluster_sphere.getIdx());
+		cluster_base.add(cluster_sphere.getType(), cluster_sphere.getIdx(), data.objs);
 	}
 
 	rotate_y cluster_rotate(cluster_base.getType(), cluster_base.getIdx(), 15, true);
@@ -579,7 +615,7 @@ int main(void) {
 	Camera cam;
 	world data;
 
-	int scene_idx = 9;
+	int scene_idx = 11;
 
 	switch(scene_idx) {
 		case 1:
@@ -621,6 +657,10 @@ int main(void) {
 		case 10:
 			final_scene(data, cam, 400, 250, 4);
 			break;
+
+		case 11:
+			out_of_order_spheres(data, cam, 35);
+			break;
 	}
 
 	cam.initialize();
@@ -635,7 +675,7 @@ int main(void) {
 
 	//// Change maximum CUDA stack size. Required to avoid an unspecified launch failure due to
 	//// maximum stack size getting exceeded.
-	HANDLE_ERROR(cudaDeviceSetLimit(cudaLimitStackSize, 2048));
+	HANDLE_ERROR(cudaDeviceSetLimit(cudaLimitStackSize, 4096));
 
 	//// RNG initialisation
 	curandState* dev_states;

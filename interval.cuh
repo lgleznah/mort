@@ -7,7 +7,7 @@ class interval {
 	public:
 		float imin, imax;
 
-		__host__ __device__ interval(): imin(+999999999999), imax(-999999999999) {}
+		__host__ __device__ interval() {}
 		__host__ __device__ interval(float _min, float _max): imin(_min), imax(_max) {}
 		__host__ __device__ interval(const interval& a, const interval& b) {
 			imin = min(a.imin, b.imin);

@@ -111,6 +111,7 @@
     <CudaCompile Include="mort.cu" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="aabb.cuh" />
     <ClInclude Include="camera.cuh" />
     <ClInclude Include="hit_record.cuh" />
     <ClInclude Include="world.cuh" />

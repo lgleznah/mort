@@ -42,6 +42,12 @@ __device__ inline float linear_to_gamma(float color) {
     return sqrt(color);
 }
 
+void swap(int* xp, int* yp) {
+    int temp = *xp;
+    *xp = *yp;
+    *yp = temp;
+}
+
 void box(const point3& a, const point3& b, int matType, int matIdx, world& data) {
     point3 min = point3(fmin(a.x(), b.x()), fmin(a.y(), b.y()), fmin(a.z(), b.z()));
     point3 max = point3(fmax(a.x(), b.x()), fmax(a.y(), b.y()), fmax(a.z(), b.z()));
@@ -75,12 +81,12 @@ void rotated_box(const point3& size, const point3& translation, float theta, int
 
     // Create list of hittables for box sides
     hittable_list box(true);
-    box.add(front.getType(), front.getIdx());
-    box.add(right.getType(), right.getIdx());
-    box.add(back.getType(), back.getIdx());
-    box.add(left.getType(), left.getIdx());
-    box.add(top.getType(), top.getIdx());
-    box.add(bottom.getType(), bottom.getIdx());
+    box.add(front.getType(), front.getIdx(), data.objs);
+    box.add(right.getType(), right.getIdx(), data.objs);
+    box.add(back.getType(), back.getIdx(), data.objs);
+    box.add(left.getType(), left.getIdx(), data.objs);
+    box.add(top.getType(), top.getIdx(), data.objs);
+    box.add(bottom.getType(), bottom.getIdx(), data.objs);
 
     rotate_y rot(box.getType(), box.getIdx(), theta, true);
     translate tr(rot.getType(), rot.getIdx(), translation);
@@ -104,12 +110,12 @@ void rotated_smoke_box(const point3& size, const point3& translation, float thet
 
     // Create list of hittables for box sides
     hittable_list box(true);
-    box.add(front.getType(), front.getIdx());
-    box.add(right.getType(), right.getIdx());
-    box.add(back.getType(), back.getIdx());
-    box.add(left.getType(), left.getIdx());
-    box.add(top.getType(), top.getIdx());
-    box.add(bottom.getType(), bottom.getIdx());
+    box.add(front.getType(), front.getIdx(), data.objs);
+    box.add(right.getType(), right.getIdx(), data.objs);
+    box.add(back.getType(), back.getIdx(), data.objs);
+    box.add(left.getType(), left.getIdx(), data.objs);
+    box.add(top.getType(), top.getIdx(), data.objs);
+    box.add(bottom.getType(), bottom.getIdx(), data.objs);
 
     rotate_y rot(box.getType(), box.getIdx(), theta, true);
     translate tr(rot.getType(), rot.getIdx(), translation, true);

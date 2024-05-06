@@ -36,4 +36,8 @@ __host__ inline float random_float(float min, float max) {
 	return min + (max - min) * random_float();
 }
 
+__host__ int random_int(int max) {
+	return rand() % max;
+}
+
 #endif // ! RNG_H

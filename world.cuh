@@ -46,6 +46,10 @@ struct world {
 			objs.host_hittable_list[objs.num_hittable_list++] = object;
 		}
 
+		void add(bvh object) {
+			objs.host_bvh[objs.num_bvh++] = object;
+		}
+
 		void add(lambertian mat) {
 			mats.host_lambertian[mats.num_lambertians++] = mat;
 		}
@@ -141,6 +145,14 @@ struct world {
 
 			for (uint16_t i = 0; i < objs.num_hittable_list; i++) {
 				if (!dev_hittable_list[i].skip && dev_hittable_list[i].hit(r, t_min, closest_so_far, temp_rec, states, idx)) {
+					hit_anything = true;
+					closest_so_far = temp_rec.t;
+					rec = temp_rec;
+				}
+			}
+
+			for (uint16_t i = 0; i < objs.num_bvh; i++) {
+				if (!dev_bvh[i].skip && dev_bvh[i].hit(r, t_min, closest_so_far, temp_rec, states, idx)) {
 					hit_anything = true;
 					closest_so_far = temp_rec.t;
 					rec = temp_rec;
