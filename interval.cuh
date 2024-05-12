@@ -36,8 +36,12 @@ class interval {
 			if (x > imax) return imax;
 			return x;
 		}
+
+		static const interval empty, universe;
 };
 
+const interval interval::empty = interval(HUGE_VALF, -HUGE_VALF);
+const interval interval::universe = interval(-HUGE_VALF, HUGE_VALF);
 
 interval operator+(const interval& ival, double displacement) {
 	return interval(ival.imin + displacement, ival.imax + displacement);

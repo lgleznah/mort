@@ -17,10 +17,13 @@
 #define OBJ_HITTABLE_LIST 6
 #define OBJ_BVH 7
 
+#define OBJ_SWAP(type, list) {type temp = list[obj_idx_1]; list[obj_idx_1] = list[obj_idx_2]; list[obj_idx_2] = temp;}
+
 bool hitDispatch(int objType, int objIdx, const ray& r, float t_min, float t_max, hit_record& rec, curandState* states, int idx);
 aabb getBboxInfo(int objType, int objIdx);
 aabb host_getBboxInfo(int objType, int objIdx, const struct world_objects& objs);
 int compare_by_axis(const struct hittable_list& list, int obj1, int obj2, const struct world_objects& objs, int axis);
+void swap_objects(int obj_type, int obj_idx_1, int obj_idx_2, world_objects& objs);
 
 struct sphere {
 
@@ -443,7 +446,7 @@ struct bvh {
 		bvh() {}
 
 		__host__
-		bvh(hittable_list& list, const struct world_objects& objs, bool _skip): skip(_skip) {
+		bvh(hittable_list& list, world_objects& objs, bool _skip): skip(_skip) {
 			int bvh_size = 1;
 			int curr_bvh_idx = 0;
 
@@ -458,8 +461,13 @@ struct bvh {
 				int curr_start = span_beginnings[curr_bvh_idx];
 				int curr_end = span_ends[curr_bvh_idx];
 
-				// Select random axis to sort
-				int random_axis = random_int(3);
+				// Select axis to sort
+				bounding_boxes[curr_bvh_idx] = aabb::empty;
+				for (int i = curr_start; i < curr_end; i++) {
+					bounding_boxes[curr_bvh_idx] = aabb(bounding_boxes[curr_bvh_idx], host_getBboxInfo(list.obj_types[i], list.obj_idxs[i], objs));
+				}
+
+				int axis = bounding_boxes[curr_bvh_idx].largest_axis();
 
 				// Determine if this is a leaf node (1 or 2 elements)
 				size_t span = curr_end - curr_start;
@@ -475,7 +483,7 @@ struct bvh {
 				}
 
 				else if (span == 2) {
-					if (compare_by_axis(list, curr_start, curr_start + 1, objs, random_axis) <= 0) {
+					if (compare_by_axis(list, curr_start, curr_start + 1, objs, axis) <= 0) {
 						left_children_types[curr_bvh_idx] = list.obj_types[curr_start];
 						left_children_idxs[curr_bvh_idx] = list.obj_idxs[curr_start];
 
@@ -496,7 +504,7 @@ struct bvh {
 
 				else {
 					// Sort given list from given start to given end, using the data contained in the world
-					sort_obj_list(list, curr_start, curr_end, objs, random_axis);
+					sort_obj_list(list, curr_start, curr_end, objs, axis);
 
 					int mid_point = curr_start + (span / 2 + (span % 2 != 0));
 
@@ -519,11 +527,11 @@ struct bvh {
 			}
 
 			// Compute AABBs once BVH is built
-			build_aabb_hierarchy(0, objs);
+			//build_aabb_hierarchy(0, objs);
 		}
 
 		__host__
-		void build_aabb_hierarchy(int idx, const struct world_objects& objs) {
+		void build_aabb_hierarchy(int idx, world_objects& objs) {
 			if (!is_internal_node[idx]) {
 				bounding_boxes[idx] = aabb(
 										host_getBboxInfo(left_children_types[idx], left_children_idxs[idx], objs),
@@ -540,7 +548,7 @@ struct bvh {
 		}
 
 		__host__
-		void sort_obj_list(hittable_list& list, int start, int end, const world_objects& objs, int axis) {
+		void sort_obj_list(hittable_list& list, int start, int end, world_objects& objs, int axis) {
 			// TODO do something better than bubble sort
 			bool swapped;
 			int temp;
@@ -548,14 +556,20 @@ struct bvh {
 				swapped = false;
 				for (int j = start; j < end - i - 1; j++) {
 					if (compare_by_axis(list, j, j + 1, objs, axis) == 1) {
-						temp = list.obj_types[j];
-						list.obj_types[j] = list.obj_types[j + 1];
-						list.obj_types[j + 1] = temp;
-						
-						temp = list.obj_idxs[j];
-						list.obj_idxs[j] = list.obj_idxs[j + 1];
-						list.obj_idxs[j + 1] = temp;
+						// Swap the items themselves if they are of the same type
+						if (list.obj_types[j] == list.obj_types[j + 1]) {
+							swap_objects(list.obj_types[j], list.obj_idxs[j], list.obj_idxs[j + 1], objs);
+						}
 
+						else {
+							temp = list.obj_types[j];
+							list.obj_types[j] = list.obj_types[j + 1];
+							list.obj_types[j + 1] = temp;
+						
+							temp = list.obj_idxs[j];
+							list.obj_idxs[j] = list.obj_idxs[j + 1];
+							list.obj_idxs[j + 1] = temp;
+						}
 						swapped = true;
 					}
 				}
@@ -679,6 +693,38 @@ struct world_objects {
 		host_hittable_list = (hittable_list*)malloc(NUM_HITTABLE_LIST * sizeof(hittable_list));
 		host_bvh = (bvh*)malloc(NUM_BVH * sizeof(bvh));
 	}
+
+	void swap(int obj_type, int obj_idx_1, int obj_idx_2) {
+		switch (obj_type) {
+		case OBJ_SPHERE:
+			OBJ_SWAP(sphere, host_sphere);
+			break;
+
+		case OBJ_QUAD:
+			OBJ_SWAP(quad, host_quad);
+			break;
+
+		case OBJ_TRANSLATE:
+			OBJ_SWAP(translate, host_translate);
+			break;
+
+		case OBJ_ROTATE_Y:
+			OBJ_SWAP(rotate_y, host_rotate_y);
+			break;
+
+		case OBJ_CONSTANT_MEDIUM:
+			OBJ_SWAP(constant_medium, host_constant_medium);
+			break;
+
+		case OBJ_HITTABLE_LIST:
+			OBJ_SWAP(hittable_list, host_hittable_list);
+			break;
+
+		case OBJ_BVH:
+			OBJ_SWAP(bvh, host_bvh);
+			break;
+		}
+	}
 };
 
 void objectsToDevice(world_objects objs) {
@@ -799,6 +845,12 @@ int compare_by_axis(const hittable_list& list, int obj1, int obj2, const world_o
 	}
 
 	return 0;
+}
+
+__host__
+void swap_objects(int obj_type, int obj_idx_1, int obj_idx_2, world_objects& objs) {
+	objs.swap(obj_type, obj_idx_1, obj_idx_2);
+	return;
 }
 
 #endif

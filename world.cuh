@@ -16,7 +16,8 @@ using std::vector;
 struct world {
 
 	public:
-		__host__  world() { 
+		__host__  
+		world() { 
 			objs.allocObjs();
 			mats.allocMats();
 			texs.allocTexs();
