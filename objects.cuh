@@ -580,28 +580,66 @@ struct bvh {
 			}
 		}
 
+
 		__device__
 		bool hit(const ray& r, float t_min, float t_max, hit_record& rec, curandState* states, int idx) const {
-			return recursive_hit(r, t_min, t_max, rec, states, idx, 0);
-		}
+			struct stack_frame {
+				int node_id;
+				int child_evaluated;
+				bool left_child_result;
+				float t_max;
+			};
 
-		__device__
-		bool recursive_hit(const ray& r, float t_min, float t_max, hit_record& rec, curandState* states, int idx, int bvh_idx) const {		
-			if (!bounding_boxes[bvh_idx].hit(r, t_min, t_max)) {
-				return false;
+			bool retval;
+			stack_frame stack[20];
+			int stack_index = 0;
+			stack_frame curr_frame;
+			stack[0] = {0, 0, -1, t_max};
+
+			while (stack_index >= 0) {
+				curr_frame = stack[stack_index];
+
+				if (curr_frame.child_evaluated == 0) {
+
+					if (!bounding_boxes[curr_frame.node_id].hit(r, t_min, curr_frame.t_max)) {
+						retval = false;
+						stack_index--;
+						continue;
+					}
+
+					if (!is_internal_node[curr_frame.node_id]) {
+						bool hit_left = hitDispatch(left_children_types[curr_frame.node_id], left_children_idxs[curr_frame.node_id], r, t_min, curr_frame.t_max, rec, states, idx);
+						bool hit_right = hitDispatch(right_children_types[curr_frame.node_id], right_children_idxs[curr_frame.node_id], r, t_min, hit_left ? rec.t : curr_frame.t_max, rec, states, idx);
+
+						retval = hit_left || hit_right;
+						stack_index--;
+						continue;
+					}
+
+					else {
+						stack[stack_index].child_evaluated += 1;
+						stack_index++;
+						stack[stack_index] = { left_children_idxs[curr_frame.node_id], 0, -1, curr_frame.t_max };
+						continue;
+					}
+				}
+
+				else if (curr_frame.child_evaluated == 1) {
+					stack[stack_index].left_child_result = retval;
+					stack[stack_index].child_evaluated += 1;
+					stack_index++;
+					stack[stack_index] = { right_children_idxs[curr_frame.node_id], 0, -1, retval ? rec.t : curr_frame.t_max };
+					continue;
+				}
+
+				else if (curr_frame.child_evaluated == 2) {
+					retval = curr_frame.left_child_result || retval;
+					stack_index--;
+					continue;
+				}
 			}
 
-			if (!is_internal_node[bvh_idx]) {
-				bool hit_left = hitDispatch(left_children_types[bvh_idx], left_children_idxs[bvh_idx], r, t_min, t_max, rec, states, idx);
-				bool hit_right = hitDispatch(right_children_types[bvh_idx], right_children_idxs[bvh_idx], r, t_min, hit_left ? rec.t : t_max, rec, states, idx);
-				return hit_left || hit_right;
-			}
-
-			else {
-				bool hit_left = recursive_hit(r, t_min, t_max, rec, states, idx, left_children_idxs[bvh_idx]);
-				bool hit_right = recursive_hit(r, t_min, hit_left ? rec.t : t_max, rec, states, idx, right_children_idxs[bvh_idx]);
-				return hit_left || hit_right;
-			}
+			return retval;
 		}
 
 	public:
