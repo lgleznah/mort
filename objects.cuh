@@ -5,6 +5,7 @@
 
 #include "hit_record.cuh"
 #include "vec3.cuh"
+#include "aabb.cuh"
 
 #define SOME_THREAD_ONLY(whatevs) {if ((threadIdx.x < 100) && (threadIdx.y < 100) && (blockIdx.x < 100) && (blockIdx.y < 100)) {whatevs;}}
 
@@ -14,8 +15,15 @@
 #define OBJ_ROTATE_Y 4
 #define OBJ_CONSTANT_MEDIUM 5
 #define OBJ_HITTABLE_LIST 6
+#define OBJ_BVH 7
+
+#define OBJ_SWAP(type, list) {type temp = list[obj_idx_1]; list[obj_idx_1] = list[obj_idx_2]; list[obj_idx_2] = temp;}
 
 bool hitDispatch(int objType, int objIdx, const ray& r, float t_min, float t_max, hit_record& rec, curandState* states, int idx);
+aabb getBboxInfo(int objType, int objIdx);
+aabb host_getBboxInfo(int objType, int objIdx, const struct world_objects& objs);
+int compare_by_axis(const struct hittable_list& list, int obj1, int obj2, const struct world_objects& objs, int axis);
+void swap_objects(int obj_type, int obj_idx_1, int obj_idx_2, world_objects& objs);
 
 struct sphere {
 
@@ -28,6 +36,7 @@ struct sphere {
 			auto rvec = vec3(radius, radius, radius);
 			idx = global_idx++;
 			skip = _skip;
+			bbox = aabb(center1 - rvec, center1 + rvec);
 		}
 
 		__host__ 
@@ -37,20 +46,10 @@ struct sphere {
 			auto rvec = vec3(radius, radius, radius);
 			idx = global_idx++;
 			skip = _skip;
+			aabb box1(cen1 - rvec, cen1 + rvec);
+			aabb box2(cen2 - rvec, cen2 + rvec);
+			bbox = aabb(box1, box2);
 		}
-
-		point3 center1;
-		float radius;
-
-		bool moves;
-		vec3 center_vec;
-
-		int mat_type;
-		int mat_idx;
-
-		int idx;
-		static int global_idx;
-		bool skip;
 
 		int getType() const { return OBJ_SPHERE; }
 		int getIdx() const { return idx; }
@@ -104,6 +103,22 @@ struct sphere {
 			u = phi / (2.0 * 3.141592565);
 			v = theta / 3.141592565;
 		}
+
+	public:
+		point3 center1;
+		float radius;
+
+		bool moves;
+		vec3 center_vec;
+
+		int mat_type;
+		int mat_idx;
+
+		int idx;
+		static int global_idx;
+		bool skip;
+
+		aabb bbox;
 };
 
 struct quad {
@@ -121,6 +136,11 @@ struct quad {
 			w = n / dot(n,n);
 			idx = global_idx++;
 			skip = _skip;
+
+			// Set bounding box
+			auto bbox_diagonal1 = aabb(Q, Q + u + v);
+			auto bbox_diagonal2 = aabb(Q + u, Q + v);
+			bbox = aabb(bbox_diagonal1, bbox_diagonal2);
 		}
 
 		int getType() const { return OBJ_QUAD; }
@@ -158,6 +178,7 @@ struct quad {
 		vec3 u, v;
 		vec3 normal;
 		vec3 w;
+		aabb bbox;
 		float D;
 		int mat_type;
 		int mat_idx;
@@ -172,9 +193,11 @@ struct translate {
 		translate() {}
 
 		__host__
-		translate(int _obj_type, int _obj_idx, const vec3& displacement, bool _skip=false) : obj_type(_obj_type), obj_idx(_obj_idx), offset(displacement) {
+		translate(int _obj_type, int _obj_idx, const vec3& displacement, const world_objects& objs, bool _skip=false) : obj_type(_obj_type), obj_idx(_obj_idx), offset(displacement) {
 			idx = global_idx++;
 			skip = _skip;
+
+			bbox = host_getBboxInfo(_obj_type, _obj_idx, objs) + displacement;
 		}
 
 		int getType() const { return OBJ_TRANSLATE; }
@@ -195,6 +218,7 @@ struct translate {
 	public:
 		int obj_type, obj_idx;
 		vec3 offset;
+		aabb bbox;
 
 		int idx;
 		static int global_idx;
@@ -207,12 +231,39 @@ struct rotate_y {
 		rotate_y() {}
 
 		__host__
-		rotate_y(int _obj_type, int _obj_idx, float theta, bool _skip=false) : obj_type(_obj_type), obj_idx(_obj_idx) {
+		rotate_y(int _obj_type, int _obj_idx, float theta, const world_objects& objs, bool _skip=false) : obj_type(_obj_type), obj_idx(_obj_idx) {
 			float radians = theta * 3.1415926535897932385 / 180.0;;
 			sin_theta = sin(radians);
 			cos_theta = cos(radians);
 			idx = global_idx++;
 			skip = _skip;
+
+			// Compute bounding box
+			bbox = host_getBboxInfo(_obj_type, _obj_idx, objs);
+			point3 pmin(HUGE_VALF, HUGE_VALF, HUGE_VALF);
+			point3 pmax(-HUGE_VALF, -HUGE_VALF, -HUGE_VALF);
+
+			for (int i = 0; i < 2; i++) {
+				for (int j = 0; j < 2; j++) {
+					for (int k = 0; k < 2; k++) {
+						auto x = i * bbox.x.imax + (1 - i) * bbox.x.imin;
+						auto y = j * bbox.y.imax + (1 - j) * bbox.y.imin;
+						auto z = k * bbox.z.imax + (1 - k) * bbox.z.imin;
+
+						auto newx = cos_theta * x + sin_theta * z;
+						auto newz = -sin_theta * x + cos_theta * z;
+
+						vec3 tester(newx, y, newz);
+
+						for (int c = 0; c < 3; c++) {
+							pmin[c] = fmin(pmin[c], tester[c]);
+							pmax[c] = fmax(pmax[c], tester[c]);
+						}
+					}
+				}
+			}
+
+			bbox = aabb(pmin, pmax);
 		}
 
 		int getType() const { return OBJ_ROTATE_Y; }
@@ -255,6 +306,7 @@ struct rotate_y {
 	public:
 		int obj_type, obj_idx;
 		float sin_theta, cos_theta;
+		aabb bbox;
 
 		int idx;
 		static int global_idx;
@@ -267,7 +319,7 @@ struct constant_medium {
 		constant_medium() {}
 
 		__host__
-		constant_medium(int _objType, int _objIdx, float d, int _matType, int _matIdx, bool _skip=false) {
+		constant_medium(int _objType, int _objIdx, float d, int _matType, int _matIdx, const world_objects& objs, bool _skip=false) {
 			obj_type = _objType;
 			obj_idx = _objIdx;
 			neg_inv_density = -(1.0 / d);
@@ -275,6 +327,8 @@ struct constant_medium {
 			mat_idx = _matIdx;
 			idx = global_idx++;
 			skip = _skip;
+
+			bbox = host_getBboxInfo(_objType, _objIdx, objs);
 		}
 
 		__device__
@@ -325,6 +379,7 @@ struct constant_medium {
 		int obj_type, obj_idx;
 		double neg_inv_density;
 		int mat_type, mat_idx;
+		aabb bbox;
 
 		int idx;
 		static int global_idx;
@@ -339,13 +394,14 @@ struct hittable_list {
 		hittable_list() {}
 
 		__host__
-		hittable_list(bool _skip): skip(_skip) { idx = global_idx++; num_objs = 0; }
+		hittable_list(bool _skip): skip(_skip) { idx = global_idx++; num_objs = 0; bbox = aabb(vec3(0, 0, 0), vec3(0, 0, 0)); }
 
 		__host__
-		void add(int _objType, int _objIdx) {
+		void add(int _objType, int _objIdx, const struct world_objects& objs) {
 			if (num_objs < LIST_MAX_OBJS) {
 				obj_types[num_objs] = _objType;
 				obj_idxs[num_objs] = _objIdx;
+				bbox = (num_objs == 0) ? host_getBboxInfo(_objType, _objIdx, objs) : aabb(bbox, host_getBboxInfo(_objType, _objIdx, objs));
 				num_objs += 1;
 			}
 		}
@@ -378,6 +434,225 @@ struct hittable_list {
 		int idx;
 		static int global_idx;
 		bool skip;
+
+		aabb bbox;
+};
+
+#define MAX_BVH_NODES 1024
+
+struct bvh {
+	public:
+		__host__
+		bvh() {}
+
+		__host__
+		bvh(hittable_list& list, world_objects& objs, bool _skip): skip(_skip) {
+			int bvh_size = 1;
+			int curr_bvh_idx = 0;
+
+			idx = global_idx++;
+
+			int span_beginnings[MAX_BVH_NODES], span_ends[MAX_BVH_NODES];
+			span_beginnings[0] = 0;
+			span_ends[0] = list.num_objs;
+
+			while (curr_bvh_idx < bvh_size) {
+				// Fetch data for current node being built
+				int curr_start = span_beginnings[curr_bvh_idx];
+				int curr_end = span_ends[curr_bvh_idx];
+
+				// Select axis to sort
+				bounding_boxes[curr_bvh_idx] = aabb::empty;
+				for (int i = curr_start; i < curr_end; i++) {
+					bounding_boxes[curr_bvh_idx] = aabb(bounding_boxes[curr_bvh_idx], host_getBboxInfo(list.obj_types[i], list.obj_idxs[i], objs));
+				}
+
+				int axis = bounding_boxes[curr_bvh_idx].largest_axis();
+
+				// Determine if this is a leaf node (1 or 2 elements)
+				size_t span = curr_end - curr_start;
+
+				if (span == 1) {
+					left_children_types[curr_bvh_idx] = list.obj_types[curr_start];
+					left_children_idxs[curr_bvh_idx] = list.obj_idxs[curr_start];
+
+					right_children_types[curr_bvh_idx] = list.obj_types[curr_start];
+					right_children_idxs[curr_bvh_idx] = list.obj_idxs[curr_start];
+
+					is_internal_node[curr_bvh_idx] = false;
+				}
+
+				else if (span == 2) {
+					if (compare_by_axis(list, curr_start, curr_start + 1, objs, axis) <= 0) {
+						left_children_types[curr_bvh_idx] = list.obj_types[curr_start];
+						left_children_idxs[curr_bvh_idx] = list.obj_idxs[curr_start];
+
+						right_children_types[curr_bvh_idx] = list.obj_types[curr_start + 1];
+						right_children_idxs[curr_bvh_idx] = list.obj_idxs[curr_start + 1];
+					}
+
+					else {
+						left_children_types[curr_bvh_idx] = list.obj_types[curr_start + 1];
+						left_children_idxs[curr_bvh_idx] = list.obj_idxs[curr_start + 1];
+
+						right_children_types[curr_bvh_idx] = list.obj_types[curr_start];
+						right_children_idxs[curr_bvh_idx] = list.obj_idxs[curr_start];
+					}
+
+					is_internal_node[curr_bvh_idx] = false;
+				}
+
+				else {
+					// Sort given list from given start to given end, using the data contained in the world
+					sort_obj_list(list, curr_start, curr_end, objs, axis);
+
+					int mid_point = curr_start + (span / 2 + (span % 2 != 0));
+
+					left_children_types[curr_bvh_idx] = OBJ_BVH;
+					left_children_idxs[curr_bvh_idx] = bvh_size;
+					span_beginnings[bvh_size] = curr_start;
+					span_ends[bvh_size] = mid_point;
+					bvh_size += 1;
+
+					right_children_types[curr_bvh_idx] = OBJ_BVH;
+					right_children_idxs[curr_bvh_idx] = bvh_size;
+					span_beginnings[bvh_size] = mid_point;
+					span_ends[bvh_size] = curr_end;
+					bvh_size += 1;
+
+					is_internal_node[curr_bvh_idx] = true;
+				}
+
+				curr_bvh_idx += 1;
+			}
+
+			// Compute AABBs once BVH is built
+			//build_aabb_hierarchy(0, objs);
+		}
+
+		__host__
+		void build_aabb_hierarchy(int idx, world_objects& objs) {
+			if (!is_internal_node[idx]) {
+				bounding_boxes[idx] = aabb(
+										host_getBboxInfo(left_children_types[idx], left_children_idxs[idx], objs),
+										host_getBboxInfo(right_children_types[idx], right_children_idxs[idx], objs)
+									  );
+			}
+			else {
+				build_aabb_hierarchy(left_children_idxs[idx], objs);
+				build_aabb_hierarchy(right_children_idxs[idx], objs);
+				bounding_boxes[idx] = aabb(bounding_boxes[left_children_idxs[idx]], bounding_boxes[right_children_idxs[idx]]);
+			}
+
+			return;
+		}
+
+		__host__
+		void sort_obj_list(hittable_list& list, int start, int end, world_objects& objs, int axis) {
+			// TODO do something better than bubble sort
+			bool swapped;
+			int temp;
+			for (int i = 0; i < (end - start) - 1; i++) {
+				swapped = false;
+				for (int j = start; j < end - i - 1; j++) {
+					if (compare_by_axis(list, j, j + 1, objs, axis) == 1) {
+						// Swap the items themselves if they are of the same type
+						if (list.obj_types[j] == list.obj_types[j + 1]) {
+							swap_objects(list.obj_types[j], list.obj_idxs[j], list.obj_idxs[j + 1], objs);
+						}
+
+						else {
+							temp = list.obj_types[j];
+							list.obj_types[j] = list.obj_types[j + 1];
+							list.obj_types[j + 1] = temp;
+						
+							temp = list.obj_idxs[j];
+							list.obj_idxs[j] = list.obj_idxs[j + 1];
+							list.obj_idxs[j + 1] = temp;
+						}
+						swapped = true;
+					}
+				}
+
+				if (!swapped) {
+					break;
+				}
+			}
+		}
+
+
+		__device__
+		bool hit(const ray& r, float t_min, float t_max, hit_record& rec, curandState* states, int idx) const {
+			struct stack_frame {
+				int node_id;
+				int child_evaluated;
+				bool left_child_result;
+				float t_max;
+			};
+
+			bool retval;
+			stack_frame stack[20];
+			int stack_index = 0;
+			stack_frame curr_frame;
+			stack[0] = {0, 0, -1, t_max};
+
+			while (stack_index >= 0) {
+				curr_frame = stack[stack_index];
+
+				if (curr_frame.child_evaluated == 0) {
+
+					if (!bounding_boxes[curr_frame.node_id].hit(r, t_min, curr_frame.t_max)) {
+						retval = false;
+						stack_index--;
+						continue;
+					}
+
+					if (!is_internal_node[curr_frame.node_id]) {
+						bool hit_left = hitDispatch(left_children_types[curr_frame.node_id], left_children_idxs[curr_frame.node_id], r, t_min, curr_frame.t_max, rec, states, idx);
+						bool hit_right = hitDispatch(right_children_types[curr_frame.node_id], right_children_idxs[curr_frame.node_id], r, t_min, hit_left ? rec.t : curr_frame.t_max, rec, states, idx);
+
+						retval = hit_left || hit_right;
+						stack_index--;
+						continue;
+					}
+
+					else {
+						stack[stack_index].child_evaluated += 1;
+						stack_index++;
+						stack[stack_index] = { left_children_idxs[curr_frame.node_id], 0, -1, curr_frame.t_max };
+						continue;
+					}
+				}
+
+				else if (curr_frame.child_evaluated == 1) {
+					stack[stack_index].left_child_result = retval;
+					stack[stack_index].child_evaluated += 1;
+					stack_index++;
+					stack[stack_index] = { right_children_idxs[curr_frame.node_id], 0, -1, retval ? rec.t : curr_frame.t_max };
+					continue;
+				}
+
+				else if (curr_frame.child_evaluated == 2) {
+					retval = curr_frame.left_child_result || retval;
+					stack_index--;
+					continue;
+				}
+			}
+
+			return retval;
+		}
+
+	public:
+
+		// Elements indexed per node ID
+		int left_children_types[MAX_BVH_NODES], left_children_idxs[MAX_BVH_NODES];
+		int right_children_types[MAX_BVH_NODES], right_children_idxs[MAX_BVH_NODES];
+		bool is_internal_node[MAX_BVH_NODES];
+		aabb bounding_boxes[MAX_BVH_NODES];
+
+		int idx;
+		static int global_idx;
+		bool skip;
 };
 
 int sphere::global_idx = 0;
@@ -386,6 +661,7 @@ int translate::global_idx = 0;
 int rotate_y::global_idx = 0;
 int constant_medium::global_idx = 0;
 int hittable_list::global_idx = 0;
+int bvh::global_idx = 0;
 
 #define NUM_SPHERES 1100
 __device__ sphere dev_sphere[NUM_SPHERES];
@@ -403,7 +679,10 @@ __constant__ rotate_y dev_rotate_y[NUM_ROTATE_Y];
 __constant__ constant_medium dev_constant_medium[NUM_CONSTANT_MEDIUM];
 
 #define NUM_HITTABLE_LIST 2
-__constant__ hittable_list dev_hittable_list[NUM_HITTABLE_LIST];
+__device__ hittable_list dev_hittable_list[NUM_HITTABLE_LIST];
+
+#define NUM_BVH 2
+__device__ bvh dev_bvh[NUM_BVH];
 
 struct world_objects {
 	sphere* host_sphere;
@@ -424,8 +703,11 @@ struct world_objects {
 	hittable_list* host_hittable_list;
 	int num_hittable_list;
 
+	bvh* host_bvh;
+	int num_bvh;
+
 	void resetCounters() {
-		num_spheres = num_quads = num_translates = num_rotate_y = num_constant_medium = num_hittable_list = 0;
+		num_spheres = num_quads = num_translates = num_rotate_y = num_constant_medium = num_hittable_list = num_bvh = 0;
 	}
 
 	void resetObjs() {
@@ -436,6 +718,7 @@ struct world_objects {
 		free(host_rotate_y);
 		free(host_constant_medium);
 		free(host_hittable_list);
+		free(host_bvh);
 	}
 	
 	void allocObjs() {
@@ -446,6 +729,39 @@ struct world_objects {
 		host_rotate_y = (rotate_y*)malloc(NUM_ROTATE_Y * sizeof(rotate_y));
 		host_constant_medium = (constant_medium*)malloc(NUM_CONSTANT_MEDIUM * sizeof(constant_medium));
 		host_hittable_list = (hittable_list*)malloc(NUM_HITTABLE_LIST * sizeof(hittable_list));
+		host_bvh = (bvh*)malloc(NUM_BVH * sizeof(bvh));
+	}
+
+	void swap(int obj_type, int obj_idx_1, int obj_idx_2) {
+		switch (obj_type) {
+		case OBJ_SPHERE:
+			OBJ_SWAP(sphere, host_sphere);
+			break;
+
+		case OBJ_QUAD:
+			OBJ_SWAP(quad, host_quad);
+			break;
+
+		case OBJ_TRANSLATE:
+			OBJ_SWAP(translate, host_translate);
+			break;
+
+		case OBJ_ROTATE_Y:
+			OBJ_SWAP(rotate_y, host_rotate_y);
+			break;
+
+		case OBJ_CONSTANT_MEDIUM:
+			OBJ_SWAP(constant_medium, host_constant_medium);
+			break;
+
+		case OBJ_HITTABLE_LIST:
+			OBJ_SWAP(hittable_list, host_hittable_list);
+			break;
+
+		case OBJ_BVH:
+			OBJ_SWAP(bvh, host_bvh);
+			break;
+		}
 	}
 };
 
@@ -456,6 +772,7 @@ void objectsToDevice(world_objects objs) {
 	HANDLE_ERROR(cudaMemcpyToSymbol(dev_rotate_y, objs.host_rotate_y, objs.num_rotate_y * sizeof(rotate_y), 0, cudaMemcpyHostToDevice));
 	HANDLE_ERROR(cudaMemcpyToSymbol(dev_constant_medium, objs.host_constant_medium, objs.num_constant_medium * sizeof(constant_medium), 0, cudaMemcpyHostToDevice));
 	HANDLE_ERROR(cudaMemcpyToSymbol(dev_hittable_list, objs.host_hittable_list, objs.num_hittable_list * sizeof(hittable_list), 0, cudaMemcpyHostToDevice));
+	HANDLE_ERROR(cudaMemcpyToSymbol(dev_bvh, objs.host_bvh, objs.num_bvh * sizeof(bvh), 0, cudaMemcpyHostToDevice));
 }
 
 __device__
@@ -487,6 +804,91 @@ bool hitDispatch(int objType, int objIdx, const ray& r, float t_min, float t_max
 	}
 
 	return false;
+}
+
+__device__
+aabb getBboxInfo(int objType, int objIdx) {
+	switch (objType) {
+		case OBJ_SPHERE:
+			return dev_sphere[objIdx].bbox;
+			break;
+
+		case OBJ_QUAD:
+			return dev_quad[objIdx].bbox;
+			break;
+
+		case OBJ_TRANSLATE:
+			return dev_translate[objIdx].bbox;
+			break;
+
+		case OBJ_ROTATE_Y:
+			return dev_rotate_y[objIdx].bbox;
+			break;
+
+		case OBJ_CONSTANT_MEDIUM:
+			return dev_constant_medium[objIdx].bbox;
+			break;
+
+		case OBJ_HITTABLE_LIST:
+			return dev_hittable_list[objIdx].bbox;
+			break;
+	}
+}
+
+__host__
+aabb host_getBboxInfo(int objType, int objIdx, const world_objects& objs) {
+	switch (objType) {
+		case OBJ_SPHERE:
+			return objs.host_sphere[objIdx].bbox;
+			break;
+
+		case OBJ_QUAD:
+			return objs.host_quad[objIdx].bbox;
+			break;
+
+		case OBJ_TRANSLATE:
+			return objs.host_translate[objIdx].bbox;
+			break;
+
+		case OBJ_ROTATE_Y:
+			return objs.host_rotate_y[objIdx].bbox;
+			break;
+
+		case OBJ_CONSTANT_MEDIUM:
+			return objs.host_constant_medium[objIdx].bbox;
+			break;
+
+		case OBJ_HITTABLE_LIST:
+			return objs.host_hittable_list[objIdx].bbox;
+			break;
+		}
+}
+
+__host__
+int compare_by_axis(const hittable_list& list, int obj1, int obj2, const world_objects& objs, int axis) {
+	int obj_types[2] = { list.obj_types[obj1], list.obj_types[obj2] };
+	int obj_idxs[2] = { list.obj_idxs[obj1], list.obj_idxs[obj2] };
+	aabb objs_aabbs[2];
+
+	for (int i = 0; i < 2; i++) {
+		objs_aabbs[i] = host_getBboxInfo(obj_types[i], obj_idxs[i], objs);
+	}
+
+	if (objs_aabbs[0].axis(axis).imin < objs_aabbs[1].axis(axis).imin) {
+		return -1;
+	}
+
+	else if (objs_aabbs[0].axis(axis).imin > objs_aabbs[1].axis(axis).imin) {
+		return 1;
+	}
+
+	return 0;
+}
+
+__host__
+void swap_objects(int obj_type, int obj_idx_1, int obj_idx_2, world_objects& objs) {
+	objs.swap(obj_type, obj_idx_1, obj_idx_2);
+	return;
 }
 
 #endif

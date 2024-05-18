@@ -16,7 +16,8 @@ using std::vector;
 struct world {
 
 	public:
-		__host__  world() { 
+		__host__  
+		world() { 
 			objs.allocObjs();
 			mats.allocMats();
 			texs.allocTexs();
@@ -44,6 +45,10 @@ struct world {
 
 		void add(hittable_list object) {
 			objs.host_hittable_list[objs.num_hittable_list++] = object;
+		}
+
+		void add(bvh object) {
+			objs.host_bvh[objs.num_bvh++] = object;
 		}
 
 		void add(lambertian mat) {
@@ -94,10 +99,23 @@ struct world {
 			texturesToDevice(texs);
 		}
 
-		__device__ bool hit(const ray& r, float t_min, float t_max, hit_record& rec, curandState* states, int idx) const {
+		__device__ 
+		bool hit(const ray& r, float t_min, float t_max, hit_record& rec, curandState* states, int idx) const {
 			hit_record temp_rec;
 			bool hit_anything = false;
 			auto closest_so_far = t_max;
+
+			for (uint16_t i = 0; i < objs.num_bvh; i++) {
+				if (!dev_bvh[i].skip && dev_bvh[i].hit(r, t_min, closest_so_far, temp_rec, states, idx)) {
+					hit_anything = true;
+					closest_so_far = temp_rec.t;
+					rec = temp_rec;
+				}
+			}
+
+			if (bvh_mode) {
+				return hit_anything;
+			}
 
 			for (uint16_t i = 0; i < objs.num_spheres; i++) {
 				if (!dev_sphere[i].skip && dev_sphere[i].hit(r, t_min, closest_so_far, temp_rec)) {
@@ -154,6 +172,8 @@ struct world {
 		world_objects objs;
 		world_materials mats;
 		world_textures texs;
+
+		bool bvh_mode;
 };
 
 #endif

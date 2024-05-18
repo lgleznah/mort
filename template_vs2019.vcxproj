@@ -102,6 +102,7 @@
     <CudaCompile>
       <Runtime>MT</Runtime>
       <TargetMachinePlatform>64</TargetMachinePlatform>
+      <GPUDebugInfo Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</GPUDebugInfo>
     </CudaCompile>
     <CudaLink>
       <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">-lineinfo %(AdditionalOptions)</AdditionalOptions>
@@ -111,6 +112,7 @@
     <CudaCompile Include="mort.cu" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="aabb.cuh" />
     <ClInclude Include="camera.cuh" />
     <ClInclude Include="hit_record.cuh" />
     <ClInclude Include="world.cuh" />

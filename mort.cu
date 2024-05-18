@@ -15,6 +15,7 @@
 #include "rng.cuh"
 #include "vec3.cuh"
 #include "camera.cuh"
+#include "aabb.cuh"
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char* file, int line, bool abort = true)
@@ -114,7 +115,7 @@ void update(uchar4* output_bitmap, DataBlock* d, int ticks) {
 	d->totalTime += elapsedTime;
 	++d->frames;
 
-	//printf("Avg. time per frame: %3.1f ms\n", d->totalTime / d->frames);
+	printf("Avg. time per frame: %3.1f ms\n", d->totalTime / d->frames);
 }
 
 void anim_exit(DataBlock* d) {
@@ -125,15 +126,19 @@ void anim_exit(DataBlock* d) {
 }
 
 void random_spheres(world& data, Camera& cam) {
+	hittable_list spheres(true);
+
 	solid_color checker1(color(.2, .3, .1));
 	solid_color checker2(color(.9, .9, .9));
 	checker_texture checker(0.32, checker1.getType(), checker1.getIdx(), checker2.getType(), checker2.getIdx());
 	lambertian ground_material(checker.getType(), checker.getIdx());
+	sphere ground_sphere(point3(0, -1000, 0), 1000, ground_material.getType(), ground_material.getIdx(), true);
 	data.add(checker1);
 	data.add(checker2);
 	data.add(checker);
 	data.add(ground_material);
-	data.add(sphere(point3(0, -1000, 0), 1000, ground_material.getType(), ground_material.getIdx()));
+	data.add(ground_sphere);
+	spheres.add(ground_sphere.getType(), ground_sphere.getIdx(), data.objs);
 
 	for (int a = -11; a < 11; a++) {
 		for (int b = -11; b < 11; b++) {
@@ -147,45 +152,63 @@ void random_spheres(world& data, Camera& cam) {
 					auto center2 = center + vec3(0, random_float(0.0, 0.5), 0);
 					solid_color color(albedo);
 					lambertian material(color.getType(), color.getIdx());
+					sphere random_sphere(center, center2, 0.2, material.getType(), material.getIdx(), true);
 					data.add(color);
 					data.add(material);
-					data.add(sphere(center, center2, 0.2, material.getType(), material.getIdx()));
+					data.add(random_sphere);
+					spheres.add(random_sphere.getType(), random_sphere.getIdx(), data.objs);
 				}
 				else if (choose_mat < 0.95) {
 					// metal
 					auto albedo = color::random(0.5, 1);
 					auto fuzz = random_float(0.0, 0.5);
 					metal material(albedo, fuzz);
+					sphere random_sphere(center, 0.2, material.getType(), material.getIdx(), true);
 					data.add(material);
-					data.add(sphere(center, 0.2, material.getType(), material.getIdx()));
+					data.add(random_sphere);
+					spheres.add(random_sphere.getType(), random_sphere.getIdx(), data.objs);
 				}
 				else {
 					// glass
 					dielectric material(1.5);
+					sphere random_sphere(center, 0.2, material.getType(), material.getIdx(), true);
 					data.add(material);
-					data.add(sphere(center, 0.2, material.getType(), material.getIdx()));
+					data.add(random_sphere);
+					spheres.add(random_sphere.getType(), random_sphere.getIdx(), data.objs);
 				}
 			}
 		}
 	}
 
 	dielectric material1(1.5);
+	sphere dielectric_sphere(point3(0, 1, 0), 1.0, material1.getType(), material1.getIdx(), true);
 	data.add(material1);
-	data.add(sphere(point3(0, 1, 0), 1.0, material1.getType(), material1.getIdx()));
+	data.add(dielectric_sphere);
+	spheres.add(dielectric_sphere.getType(), dielectric_sphere.getIdx(), data.objs);
 
 	solid_color sph_color(color(0.4, 0.2, 0.1));
 	lambertian material2(sph_color.getType(), sph_color.getIdx());
+	sphere lambertian_sphere(point3(-4, 1, 0), 1.0, material2.getType(), material2.getIdx(), true);
 	data.add(sph_color);
 	data.add(material2);
-	data.add(sphere(point3(-4, 1, 0), 1.0, material2.getType(), material2.getIdx()));
+	data.add(lambertian_sphere);
+	spheres.add(lambertian_sphere.getType(), lambertian_sphere.getIdx(), data.objs);
 
 	metal material3(color(0.7, 0.6, 0.5), 0.0);
+	sphere metal_sphere(point3(4, 1, 0), 1.0, material3.getType(), material3.getIdx(), true);
 	data.add(material3);
-	data.add(sphere(point3(4, 1, 0), 1.0, material3.getType(), material3.getIdx()));
+	data.add(metal_sphere);
+	spheres.add(metal_sphere.getType(), metal_sphere.getIdx(), data.objs);
+
+	data.add(spheres);
+
+	bvh bvh_spheres(spheres, data.objs, false);
+	data.add(bvh_spheres);
+	data.bvh_mode = true;
 
 	cam.aspect_ratio = 16.0 / 9.0;
 	cam.image_width = 1200;
-	cam.samples_per_pixel = 5;
+	cam.samples_per_pixel = 10;
 	cam.bounce_limit = 5;
 
 	cam.vfov = 20;
@@ -222,6 +245,41 @@ void two_spheres(world& data, Camera& cam) {
 	cam.vup = vec3(0, 1, 0);
 
 	cam.defocus_angle = 0;
+}
+
+void out_of_order_spheres(world& data, Camera& cam, int n_spheres) {
+	hittable_list spheres(true);
+
+	for (int i = 0; i < n_spheres; i++) {
+		auto albedo = color::random() * color::random();
+		auto center = vec3(n_spheres - i, n_spheres - i, n_spheres - i);
+		solid_color color(albedo);
+		lambertian material(color.getType(), color.getIdx());
+		sphere test(center, 0.2, material.getType(), material.getIdx(), true);
+		data.add(color);
+		data.add(material);
+		data.add(test);
+		spheres.add(test.getType(), test.getIdx(), data.objs);
+	}
+
+	data.add(spheres);
+	bvh bvh_spheres(spheres, data.objs, false);
+	data.add(bvh_spheres);
+
+	cam.aspect_ratio = 16.0 / 9.0;
+	cam.image_width = 1200;
+	cam.samples_per_pixel = 1;
+	cam.bounce_limit = 5;
+
+	cam.vfov = 20;
+	cam.lookfrom = point3(13, 2, 3);
+	cam.lookat = point3(0, 0, 0);
+	cam.vup = vec3(0, 1, 0);
+
+	cam.defocus_angle = 0.0;
+	cam.focus_dist = 10.0;
+
+	return;
 }
 
 void earth(world& data, Camera& cam) {
@@ -507,7 +565,7 @@ void final_scene(world& data, Camera& cam, int image_width, int samples_per_pixe
 	solid_color subsurface_sphere_color(color(0.2, 0.4, 0.9));
 	lambertian subsurface_sphere_mat(subsurface_sphere_color.getType(), subsurface_sphere_color.getIdx());
 	sphere subsurface_sphere(point3(360, 150, 145), 70, glass_sphere_mat.getType(), glass_sphere_mat.getIdx());
-	constant_medium subsurface_sphere_inside(subsurface_sphere.getType(), subsurface_sphere.getIdx(), 0.2, subsurface_sphere_mat.getType(), subsurface_sphere_mat.getIdx());
+	constant_medium subsurface_sphere_inside(subsurface_sphere.getType(), subsurface_sphere.getIdx(), 0.2, subsurface_sphere_mat.getType(), subsurface_sphere_mat.getIdx(), data.objs);
 	data.add(subsurface_sphere_color);
 	data.add(subsurface_sphere_mat);
 	data.add(subsurface_sphere);
@@ -517,7 +575,7 @@ void final_scene(world& data, Camera& cam, int image_width, int samples_per_pixe
 	solid_color boundary_color(color(1, 1, 1));
 	lambertian boundary_mat(boundary_color.getType(), boundary_color.getIdx());
 	sphere boundary_sphere(point3(0, 0, 0), 5000, glass_sphere_mat.getType(), glass_sphere_mat.getIdx());
-	constant_medium boundary(boundary_sphere.getType(), boundary_sphere.getIdx(), 0.0001, boundary_mat.getType(), boundary_mat.getIdx());
+	constant_medium boundary(boundary_sphere.getType(), boundary_sphere.getIdx(), 0.0001, boundary_mat.getType(), boundary_mat.getIdx(), data.objs);
 	data.add(boundary_color);
 	data.add(boundary_mat);
 	data.add(boundary_sphere);
@@ -548,11 +606,11 @@ void final_scene(world& data, Camera& cam, int image_width, int samples_per_pixe
 	for (int j = 0; j < ns; j++) {
 		sphere cluster_sphere(point3::random(0, 165), 10, cluster_mat.getType(), cluster_mat.getIdx(), true);
 		data.add(cluster_sphere);
-		cluster_base.add(cluster_sphere.getType(), cluster_sphere.getIdx());
+		cluster_base.add(cluster_sphere.getType(), cluster_sphere.getIdx(), data.objs);
 	}
 
-	rotate_y cluster_rotate(cluster_base.getType(), cluster_base.getIdx(), 15, true);
-	translate cluster(cluster_rotate.getType(), cluster_rotate.getIdx(), vec3(-100, 270, 395));
+	rotate_y cluster_rotate(cluster_base.getType(), cluster_base.getIdx(), 15, data.objs, true);
+	translate cluster(cluster_rotate.getType(), cluster_rotate.getIdx(), vec3(-100, 270, 395), data.objs);
 
 	data.add(cluster_color);
 	data.add(cluster_mat);
@@ -579,7 +637,7 @@ int main(void) {
 	Camera cam;
 	world data;
 
-	int scene_idx = 9;
+	int scene_idx = 1;
 
 	switch(scene_idx) {
 		case 1:
@@ -621,6 +679,10 @@ int main(void) {
 		case 10:
 			final_scene(data, cam, 400, 250, 4);
 			break;
+
+		case 11:
+			out_of_order_spheres(data, cam, 35);
+			break;
 	}
 
 	cam.initialize();
@@ -635,7 +697,7 @@ int main(void) {
 
 	//// Change maximum CUDA stack size. Required to avoid an unspecified launch failure due to
 	//// maximum stack size getting exceeded.
-	HANDLE_ERROR(cudaDeviceSetLimit(cudaLimitStackSize, 2048));
+	HANDLE_ERROR(cudaDeviceSetLimit(cudaLimitStackSize, 8192));
 
 	//// RNG initialisation
 	curandState* dev_states;

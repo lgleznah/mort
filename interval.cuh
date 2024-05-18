@@ -7,7 +7,7 @@ class interval {
 	public:
 		float imin, imax;
 
-		__host__ __device__ interval(): imin(+999999999999), imax(-999999999999) {}
+		__host__ __device__ interval() {}
 		__host__ __device__ interval(float _min, float _max): imin(_min), imax(_max) {}
 		__host__ __device__ interval(const interval& a, const interval& b) {
 			imin = min(a.imin, b.imin);
@@ -36,6 +36,19 @@ class interval {
 			if (x > imax) return imax;
 			return x;
 		}
+
+		static const interval empty, universe;
 };
+
+const interval interval::empty = interval(HUGE_VALF, -HUGE_VALF);
+const interval interval::universe = interval(-HUGE_VALF, HUGE_VALF);
+
+interval operator+(const interval& ival, double displacement) {
+	return interval(ival.imin + displacement, ival.imax + displacement);
+}
+
+interval operator+(double displacement, const interval& ival) {
+	return ival + displacement;
+}
 
 #endif
