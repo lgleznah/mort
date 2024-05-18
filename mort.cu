@@ -443,7 +443,7 @@ void cornell_box(world& data, Camera& cam) {
 
 	cam.aspect_ratio = 1.0;
 	cam.image_width = 800;
-	cam.samples_per_pixel = 1000;
+	cam.samples_per_pixel = 4096;
 	cam.bounce_limit = 50;
 	cam.background = color(0, 0, 0);
 
@@ -637,7 +637,7 @@ int main(void) {
 	Camera cam;
 	world data;
 
-	int scene_idx = 1;
+	int scene_idx = 7;
 
 	switch(scene_idx) {
 		case 1:
