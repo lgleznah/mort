@@ -13,6 +13,9 @@ struct Camera {
 	int image_width = 1500;
 	int image_height;
 	int samples_per_pixel = 50;
+	float pixel_samples_scale;
+	int sqrt_spp;
+	float recip_sqrt_spp;
 	int bounce_limit = 10;
 	int vfov = 90;
 	color background = color(0.70, 0.80, 1.00);
@@ -37,6 +40,10 @@ struct Camera {
 	void initialize() {
 		image_height = static_cast<int>(image_width / aspect_ratio);
 		image_height = (image_height < 1) ? 1 : image_height;
+
+		sqrt_spp = int(sqrt(samples_per_pixel));
+		pixel_samples_scale = 1.0 / (sqrt_spp * sqrt_spp);
+		recip_sqrt_spp = 1.0 / sqrt_spp;
 
 		center = lookfrom;
 
@@ -69,7 +76,8 @@ struct Camera {
 		defocus_disk_v = v * defocus_radius;
 	}
 
-    __device__ color ray_color(const ray& r, curandState* states, int idx, int x, int y, world data) {
+    __device__ 
+	color ray_color(const ray& r, curandState* states, int idx, int x, int y, world data) {
 		hit_record rec;
 
 		int iter = 0;
@@ -111,15 +119,13 @@ struct Camera {
 		while (iter > 0) {
 			iter--;
 			finalValue = finalValue * recursionAttenuation[recursionOffset + iter] + recursionEmission[recursionOffset + iter];
-			//recursionAttenuation[recursionOffset + iter] = color(0, 0, 0);
-			//recursionEmission[recursionOffset + iter] = color(0, 0, 0);
 		}
 
-		//printf("%f %f %f\n", finalValue.x(), finalValue.y(), finalValue.z());
 		return finalValue;
 	}
 
-	__device__ void render(uchar4* ptr, curandState* states, world data) {
+	__device__ 
+	void render(uchar4* ptr, curandState* states, world data) {
 		int x = threadIdx.x + blockIdx.x * blockDim.x;
 		int y = threadIdx.y + blockIdx.y * blockDim.y;
 		int offset = x + y * image_width;
@@ -127,13 +133,14 @@ struct Camera {
 		if (x > image_width || y > image_height) return;
 
 		color pixel_color(0, 0, 0);
-		for (int s = 0; s < samples_per_pixel; s++) {
-			ray r = get_ray(x, y, states, offset);
-			pixel_color += ray_color(r, states, offset, x, y, data);
+		for (int s_j = 0; s_j < sqrt_spp; s_j++) {
+			for (int s_i = 0; s_i < sqrt_spp; s_i++) {
+				ray r = get_ray(x, y, states, offset, s_i, s_j);
+				pixel_color += ray_color(r, states, offset, x, y, data);
+			}
 		}
 
-		auto scale = 1.0 / samples_per_pixel;
-		pixel_color *= scale;
+		pixel_color *= pixel_samples_scale;
 
 		pixel_color[0] = linear_to_gamma(pixel_color[0]);
 		pixel_color[1] = linear_to_gamma(pixel_color[1]);
@@ -145,9 +152,10 @@ struct Camera {
 		ptr[offset].w = 255;
 	}
 
-    __device__ ray get_ray(double u, double v, curandState* states, int idx) const {
-		auto pixel_center = pixel00_loc + (u * pixel_delta_u) + (v * pixel_delta_v);
-		auto pixel_sample = pixel_center + pixel_sample_square(states, idx);
+    __device__ 
+	ray get_ray(double u, double v, curandState* states, int idx, int s_i, int s_j) const {
+		auto offset = sample_square_stratified(s_i, s_j, states, idx);
+		auto pixel_sample = pixel00_loc + ((u + offset.x()) * pixel_delta_u) + ((v + offset.y()) * pixel_delta_v);
 
 		auto ray_origin = (defocus_angle <= 0) ? center : defocus_disk_sample(states, idx);
 		auto ray_direction = pixel_sample - ray_origin;
@@ -156,18 +164,27 @@ struct Camera {
 		return ray(ray_origin, ray_direction, ray_time);
     }
 
-	__device__ vec3 pixel_sample_square(curandState* states, int idx) const {
+	__device__ 
+	vec3 pixel_sample_square(curandState* states, int idx) const {
 		// Returns a random point in the square surrounding a pixel at the origin.
 		auto px = -0.5 + random_float(states, idx);
 		auto py = -0.5 + random_float(states, idx);
 		return (px * pixel_delta_u) + (py * pixel_delta_v);
 	}
 
-	__device__ point3 defocus_disk_sample(curandState* states, int idx) const {
+	__device__ 
+	point3 defocus_disk_sample(curandState* states, int idx) const {
 		auto p = random_in_unit_disk(states, idx);
 		return center + (p[0] * defocus_disk_u) + (p[1] * defocus_disk_v);
 	}
 
+	__device__
+	vec3 sample_square_stratified(int s_i, int s_j, curandState* states, int idx) const {
+		auto px = ((s_i + random_float(states, idx)) * recip_sqrt_spp) - 0.5;
+		auto py = ((s_j + random_float(states, idx)) * recip_sqrt_spp) - 0.5;
+
+		return vec3(px, py, 0);
+	}
 };
 
 #endif
