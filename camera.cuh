@@ -19,8 +19,11 @@ struct Camera {
 	int bounce_limit = 10;
 	int vfov = 90;
 	color background = color(0.70, 0.80, 1.00);
+
 	color* recursionAttenuation;
 	color* recursionEmission;
+	float* recursionScatteringPdf;
+	float* recursionPdf;
 
 	point3 center;
 	point3 pixel00_loc;
@@ -96,6 +99,10 @@ struct Camera {
 					current_ray = scattered;
 					recursionAttenuation[recursionOffset + iter] = attenuation;
 					recursionEmission[recursionOffset + iter] = emission;
+					
+					float scattering_pdf = scatterPdfDispatch(rec.mat_type, rec.mat_idx, current_ray, rec, scattered);
+					recursionScatteringPdf[recursionOffset + iter] = scattering_pdf;
+					recursionPdf[recursionOffset + iter] = scattering_pdf;
 					iter++;
 				}
 				else {
@@ -118,7 +125,11 @@ struct Camera {
 		// Unwind recursion, multiplying by attenuation and adding emission of each iteration
 		while (iter > 0) {
 			iter--;
-			finalValue = finalValue * recursionAttenuation[recursionOffset + iter] + recursionEmission[recursionOffset + iter];
+			float scattering_pdf = recursionScatteringPdf[recursionOffset + iter];
+			float pdf = recursionPdf[recursionOffset + iter];
+			color attenuation = recursionAttenuation[recursionOffset + iter];
+			color emission = recursionEmission[recursionOffset + iter];
+			finalValue = emission + ((attenuation * scattering_pdf * finalValue) / pdf);
 		}
 
 		return finalValue;
@@ -130,7 +141,7 @@ struct Camera {
 		int y = threadIdx.y + blockIdx.y * blockDim.y;
 		int offset = x + y * image_width;
 
-		if (x > image_width || y > image_height) return;
+		if (x >= image_width || y >= image_height) return;
 
 		color pixel_color(0, 0, 0);
 		for (int s_j = 0; s_j < sqrt_spp; s_j++) {

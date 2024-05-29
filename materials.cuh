@@ -39,6 +39,12 @@ struct lambertian {
 			return color(0.0, 0.0, 0.0);
 		}
 
+		__device__
+		float scatter_pdf(const ray& r_in, const hit_record& rec, const ray& scattered) const {
+			float cos_theta = dot(rec.normal, unit_vector(scattered.direction()));
+			return (cos_theta < 0) ? 0 : cos_theta / 3.141592565;
+		}
+
 		int getType() const { return MAT_LAMBERTIAN; }
 		int getIdx() const { return idx; }
 };
@@ -267,27 +273,54 @@ bool scatterDispatch(const ray& r_in, const hit_record& rec, color& attenuation,
 __device__ 
 color emitDispatch(int mat_type, int mat_idx, const float u, const float v, const point3& p) {
 	switch (mat_type) {
-	case MAT_LAMBERTIAN:
-		return dev_lambertian[mat_idx].emitted(u, v, p);
-		break;
+		case MAT_LAMBERTIAN:
+			return dev_lambertian[mat_idx].emitted(u, v, p);
+			break;
 
-	case MAT_METAL:
-		return dev_metal[mat_idx].emitted(u, v, p);
-		break;
+		case MAT_METAL:
+			return dev_metal[mat_idx].emitted(u, v, p);
+			break;
 
-	case MAT_DIELECTRIC:
-		return dev_dielectric[mat_idx].emitted(u, v, p);
-		break;
+		case MAT_DIELECTRIC:
+			return dev_dielectric[mat_idx].emitted(u, v, p);
+			break;
 
-	case MAT_DIFFUSE_LIGHT:
-		return dev_diffuse_light[mat_idx].emitted(u, v, p);
-		break;
+		case MAT_DIFFUSE_LIGHT:
+			return dev_diffuse_light[mat_idx].emitted(u, v, p);
+			break;
 
-	case MAT_ISOTROPIC:
-		return dev_isotropic[mat_idx].emitted(u, v, p);
+		case MAT_ISOTROPIC:
+			return dev_isotropic[mat_idx].emitted(u, v, p);
 	}
 
 	return color(0.0, 0.0, 0.0);
+}
+
+__device__
+float scatterPdfDispatch(int mat_type, int mat_idx, const ray& r_in, const hit_record& rec, const ray& scattered) {
+	switch (mat_type) {
+		case MAT_LAMBERTIAN:
+			return dev_lambertian[mat_idx].scatter_pdf(r_in, rec, scattered);
+			break;
+
+		case MAT_METAL:
+			return 0;
+			break;
+
+		case MAT_DIELECTRIC:
+			return 0;
+			break;
+
+		case MAT_DIFFUSE_LIGHT:
+			return 0;
+			break;
+
+		case MAT_ISOTROPIC:
+			return 0;
+			break;
+	}
+
+	return 0;
 }
 
 #endif
