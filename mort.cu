@@ -41,7 +41,8 @@ struct DataBlock {
 	world data;
 };
 
-__global__ void renderKernel(Camera camera, uchar4* ptr, curandState* states, world world) {
+__global__ 
+void renderKernel(Camera camera, uchar4* ptr, curandState* states, world world) {
 	camera.render(ptr, states, world);
 }
 
@@ -442,8 +443,8 @@ void cornell_box(world& data, Camera& cam) {
 	rotated_box(point3(165, 165, 165), vec3(130, 0, 65), -18, white_wall.getType(), white_wall.getIdx(), data);
 
 	cam.aspect_ratio = 1.0;
-	cam.image_width = 800;
-	cam.samples_per_pixel = 4096;
+	cam.image_width = 600;
+	cam.samples_per_pixel = 100;
 	cam.bounce_limit = 50;
 	cam.background = color(0, 0, 0);
 
@@ -712,6 +713,14 @@ int main(void) {
 	HANDLE_ERROR(cudaMalloc((void**)&recursionEmission, cam.bounce_limit * cam.image_width * cam.image_height * sizeof(color)));
 	cam.recursionAttenuation = recursionAttenuation;
 	cam.recursionEmission = recursionEmission;
+
+	//// Scattering PDF recursion setup
+	float* recursionScatteringPdf;
+	float* recursionPdf;
+	HANDLE_ERROR(cudaMalloc((void**)&recursionScatteringPdf, cam.bounce_limit * cam.image_width * cam.image_height * sizeof(float)));
+	HANDLE_ERROR(cudaMalloc((void**)&recursionPdf, cam.bounce_limit * cam.image_width * cam.image_height * sizeof(float)));
+	cam.recursionScatteringPdf = recursionScatteringPdf;
+	cam.recursionPdf = recursionPdf;
 
 	//// Update function setup
 	DataBlock update_data;
