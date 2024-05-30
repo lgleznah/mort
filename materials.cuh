@@ -8,6 +8,7 @@
 #include "hit_record.cuh"
 #include "ray.cuh"
 #include "textures.cuh"
+#include "onb.cuh"
 
 #define MAT_LAMBERTIAN 1
 #define MAT_METAL 2
@@ -27,10 +28,14 @@ struct lambertian {
 		__host__ lambertian(int _texType, int _texIdx): texType(_texType), texIdx(_texIdx) { idx = global_idx++; }
 
 		__device__ 
-		bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, curandState* states, int idx) const {
-			auto scatter_direction = rec.normal + random_in_unit_sphere(states, idx);
-			scattered = ray(rec.p, scatter_direction, r_in.time());
+		bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, float& pdf, curandState* states, int idx) const {
+			onb uvw;
+			uvw.build_from_w(rec.normal);
+			vec3 scatter_direction = uvw.local(random_cosine_direction(states, idx));
+			
+			scattered = ray(rec.p, unit_vector(scatter_direction), r_in.time());
 			attenuation = valueDispatch(texType, texIdx, rec.u, rec.v, rec.p);
+			pdf = dot(uvw.w(), scattered.direction()) / 3.1415926;
 			return true;
 		}
 
@@ -62,7 +67,7 @@ struct metal {
 		__host__ metal(const color& a, float f): albedo(a), fuzz(f) { idx = global_idx++; }
 
 		__device__ 
-		bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, curandState* states, int idx) const {
+		bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, float& pdf, curandState* states, int idx) const {
 			vec3 reflected = reflect(unit_vector(r_in.direction()), rec.normal);
 			reflected += random_in_unit_sphere(states, idx) * fuzz;
 			scattered = ray(rec.p, reflected, r_in.time());
@@ -92,7 +97,7 @@ struct dielectric {
 		__host__ dielectric(float refraction_index): ior(refraction_index), inv_ior(1.0 / refraction_index), albedo(color(1.0,1.0,1.0)) { idx = global_idx++; }
 
 		__device__ 
-		bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, curandState* states, int idx) const {
+		bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, float& pdf, curandState* states, int idx) const {
 			attenuation = albedo;
 			float refraction_ratio = rec.front_face ? inv_ior : ior;
 
@@ -134,7 +139,7 @@ struct diffuse_light {
 		__host__ diffuse_light(int _texType, int _texIdx): texType(_texType), texIdx(_texIdx) { idx = global_idx++; }
 
 		__device__
-		bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, curandState* states, int idx) const {
+		bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, float& pdf, curandState* states, int idx) const {
 			return false;
 		}
 
@@ -161,15 +166,21 @@ struct isotropic {
 		isotropic(int _texType, int _texIdx) : texType(_texType), texIdx(_texIdx) { idx = global_idx++; }
 
 		__device__
-		bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, curandState* states, int idx) const {
+		bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, float& pdf, curandState* states, int idx) const {
 			scattered = ray(rec.p, random_in_unit_sphere(states, idx), r_in.time());
 			attenuation = valueDispatch(texType, texIdx, rec.u, rec.v, rec.p);
+			pdf = 1 / (4 * 3.1415926);
 			return true;
 		}
 
 		__device__
 		color emitted(float u, float v, const point3& p) const {
 			return color(0.0, 0.0, 0.0);
+		}
+
+		__device__
+		float scatter_pdf(const ray& r_in, const hit_record& rec, const ray& scattered) const {
+			return 1 / (4 * 3.1415926);
 		}
 
 		int getType() const { return MAT_ISOTROPIC; }
@@ -245,26 +256,26 @@ void materialsToDevice(world_materials mats) {
 }
 
 __device__ 
-bool scatterDispatch(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, curandState* states, int idx) {
+bool scatterDispatch(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, float& pdf, curandState* states, int idx) {
 	switch (rec.mat_type) {
 	case MAT_LAMBERTIAN:
-		return dev_lambertian[rec.mat_idx].scatter(r_in, rec, attenuation, scattered, states, idx);
+		return dev_lambertian[rec.mat_idx].scatter(r_in, rec, attenuation, scattered, pdf, states, idx);
 		break;
 
 	case MAT_METAL:
-		return dev_metal[rec.mat_idx].scatter(r_in, rec, attenuation, scattered, states, idx);
+		return dev_metal[rec.mat_idx].scatter(r_in, rec, attenuation, scattered, pdf, states, idx);
 		break;
 
 	case MAT_DIELECTRIC:
-		return dev_dielectric[rec.mat_idx].scatter(r_in, rec, attenuation, scattered, states, idx);
+		return dev_dielectric[rec.mat_idx].scatter(r_in, rec, attenuation, scattered, pdf, states, idx);
 		break;
 
 	case MAT_DIFFUSE_LIGHT:
-		return dev_diffuse_light[rec.mat_idx].scatter(r_in, rec, attenuation, scattered, states, idx);
+		return dev_diffuse_light[rec.mat_idx].scatter(r_in, rec, attenuation, scattered, pdf, states, idx);
 		break;
 
 	case MAT_ISOTROPIC:
-		return dev_isotropic[rec.mat_idx].scatter(r_in, rec, attenuation, scattered, states, idx);
+		return dev_isotropic[rec.mat_idx].scatter(r_in, rec, attenuation, scattered, pdf, states, idx);
 	}
 
 	return false;
@@ -316,7 +327,7 @@ float scatterPdfDispatch(int mat_type, int mat_idx, const ray& r_in, const hit_r
 			break;
 
 		case MAT_ISOTROPIC:
-			return 0;
+			return dev_isotropic[mat_idx].scatter_pdf(r_in, rec, scattered);;
 			break;
 	}
 
