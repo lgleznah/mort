@@ -40,7 +40,7 @@ struct lambertian {
 		}
 
 		__device__
-		color emitted(float u, float v, const point3& p) const {
+		color emitted(const ray& r_in, const hit_record& rec, float u, float v, const point3& p) const {
 			return color(0.0, 0.0, 0.0);
 		}
 
@@ -76,7 +76,7 @@ struct metal {
 		}
 
 		__device__
-		color emitted(float u, float v, const point3& p) const {
+		color emitted(const ray& r_in, const hit_record& rec, float u, float v, const point3& p) const {
 			return color(0.0, 0.0, 0.0);
 		}
 
@@ -120,7 +120,7 @@ struct dielectric {
 		}
 
 		__device__
-		color emitted(float u, float v, const point3& p) const {
+		color emitted(const ray& r_in, const hit_record& rec, float u, float v, const point3& p) const {
 			return color(0.0, 0.0, 0.0);
 		}
 
@@ -144,7 +144,11 @@ struct diffuse_light {
 		}
 
 		__device__
-		color emitted(float u, float v, const point3& p) const {
+		color emitted(const ray& r_in, const hit_record& rec, float u, float v, const point3& p) const {
+			if (!rec.front_face) {
+				return color(0, 0, 0);
+			}
+
 			return valueDispatch(texType, texIdx, u, v, p);
 		}
 
@@ -174,7 +178,7 @@ struct isotropic {
 		}
 
 		__device__
-		color emitted(float u, float v, const point3& p) const {
+		color emitted(const ray& r_in, const hit_record& rec, float u, float v, const point3& p) const {
 			return color(0.0, 0.0, 0.0);
 		}
 
@@ -282,26 +286,26 @@ bool scatterDispatch(const ray& r_in, const hit_record& rec, color& attenuation,
 }
 
 __device__ 
-color emitDispatch(int mat_type, int mat_idx, const float u, const float v, const point3& p) {
+color emitDispatch(int mat_type, int mat_idx, const ray& r_in, const hit_record& rec, const float u, const float v, const point3& p) {
 	switch (mat_type) {
 		case MAT_LAMBERTIAN:
-			return dev_lambertian[mat_idx].emitted(u, v, p);
+			return dev_lambertian[mat_idx].emitted(r_in, rec, u, v, p);
 			break;
 
 		case MAT_METAL:
-			return dev_metal[mat_idx].emitted(u, v, p);
+			return dev_metal[mat_idx].emitted(r_in, rec, u, v, p);
 			break;
 
 		case MAT_DIELECTRIC:
-			return dev_dielectric[mat_idx].emitted(u, v, p);
+			return dev_dielectric[mat_idx].emitted(r_in, rec, u, v, p);
 			break;
 
 		case MAT_DIFFUSE_LIGHT:
-			return dev_diffuse_light[mat_idx].emitted(u, v, p);
+			return dev_diffuse_light[mat_idx].emitted(r_in, rec, u, v, p);
 			break;
 
 		case MAT_ISOTROPIC:
-			return dev_isotropic[mat_idx].emitted(u, v, p);
+			return dev_isotropic[mat_idx].emitted(r_in, rec, u, v, p);
 	}
 
 	return color(0.0, 0.0, 0.0);

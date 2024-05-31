@@ -444,7 +444,7 @@ void cornell_box(world& data, Camera& cam) {
 
 	cam.aspect_ratio = 1.0;
 	cam.image_width = 600;
-	cam.samples_per_pixel = 100;
+	cam.samples_per_pixel = 10;
 	cam.bounce_limit = 50;
 	cam.background = color(0, 0, 0);
 

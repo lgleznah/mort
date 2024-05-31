@@ -94,15 +94,38 @@ struct Camera {
 				// If hit, continue recursion after computing scatter color
 				ray scattered;
 				color attenuation;
-				color emission = emitDispatch(rec.mat_type, rec.mat_idx, rec.u, rec.v, rec.p);
-				if (scatterDispatch(current_ray, rec, attenuation, scattered, states, idx)) {
+				color emission = emitDispatch(rec.mat_type, rec.mat_idx, current_ray, rec, rec.u, rec.v, rec.p);
+				float pdf;
+				if (scatterDispatch(current_ray, rec, attenuation, scattered, pdf, states, idx)) {
+					point3 on_light = point3(random_float(states, idx, 213, 343), 554, random_float(states, idx, 227, 332));
+					vec3 to_light = on_light - rec.p;
+					float distance_squared = to_light.length_squared();
+					to_light = unit_vector(to_light);
+
+					if (dot(to_light, rec.normal) < 0) {
+						finalValue = emission;
+						break;
+					}
+
+					float light_area = (343 - 213) * (332 - 227);
+					float light_cosine = fabsf(to_light.y());
+
+					if (light_cosine < 0.0000001) {
+						finalValue = emission;
+						break;
+					}
+
+					pdf = distance_squared / (light_cosine * light_area);
+					scattered = ray(rec.p, to_light, r.time());
+					float scattering_pdf = scatterPdfDispatch(rec.mat_type, rec.mat_idx, current_ray, rec, scattered);
+
 					current_ray = scattered;
 					recursionAttenuation[recursionOffset + iter] = attenuation;
 					recursionEmission[recursionOffset + iter] = emission;
 					
-					float scattering_pdf = scatterPdfDispatch(rec.mat_type, rec.mat_idx, current_ray, rec, scattered);
+					// float scattering_pdf = scatterPdfDispatch(rec.mat_type, rec.mat_idx, current_ray, rec, scattered);
 					recursionScatteringPdf[recursionOffset + iter] = scattering_pdf;
-					recursionPdf[recursionOffset + iter] = scattering_pdf;
+					recursionPdf[recursionOffset + iter] = pdf;
 					iter++;
 				}
 				else {
