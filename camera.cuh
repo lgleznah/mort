@@ -4,6 +4,7 @@
 #include <cuda_runtime.h>
 #include <curand.h>
 
+#include "pdf.cuh"
 #include "vec3.cuh"
 #include "utils.h"
 #include "rng.cuh"
@@ -24,6 +25,9 @@ struct Camera {
 	color* recursionEmission;
 	float* recursionScatteringPdf;
 	float* recursionPdf;
+
+	int light_obj_type;
+	int light_obj_idx;
 
 	point3 center;
 	point3 pixel00_loc;
@@ -93,39 +97,41 @@ struct Camera {
 			if (data.hit(current_ray, 0.001, INFINITY, rec, states, idx)) {
 				// If hit, continue recursion after computing scatter color
 				ray scattered;
-				color attenuation;
 				color emission = emitDispatch(rec.mat_type, rec.mat_idx, current_ray, rec, rec.u, rec.v, rec.p);
-				float pdf;
-				if (scatterDispatch(current_ray, rec, attenuation, scattered, pdf, states, idx)) {
-					point3 on_light = point3(random_float(states, idx, 213, 343), 554, random_float(states, idx, 227, 332));
-					vec3 to_light = on_light - rec.p;
-					float distance_squared = to_light.length_squared();
-					to_light = unit_vector(to_light);
-
-					if (dot(to_light, rec.normal) < 0) {
-						finalValue = emission;
-						break;
+				float pdf, scattering_pdf;
+				scatter_record srec;
+				if (scatterDispatch(current_ray, rec, srec, states, idx)) {
+					// Check if this ray skips PDF checks
+					if (srec.skip_pdf) {
+						current_ray = srec.skip_pdf_ray;
+						recursionAttenuation[recursionOffset + iter] = srec.attenuation;
+						recursionEmission[recursionOffset + iter] = color(0, 0, 0);
+						recursionScatteringPdf[recursionOffset + iter] = 1.0;
+						recursionPdf[recursionOffset + iter] = 1.0;
+						iter++;
+						continue;
 					}
 
-					float light_area = (343 - 213) * (332 - 227);
-					float light_cosine = fabsf(to_light.y());
+					// Create PDFs
+					hittable_pdf light_pdf(light_obj_type, light_obj_idx, rec.p);
+					mixture_pdf mixed_pdf(&light_pdf, srec.pdf_ptr);
 
-					if (light_cosine < 0.0000001) {
-						finalValue = emission;
-						break;
-					}
+					// Compute scattered ray, and its corresponding object scatter PDF and ray PDF values
+					scattered = ray(rec.p, mixed_pdf.generate(states, idx), r.time());
+					pdf = mixed_pdf.value(scattered.direction());
+					scattering_pdf = scatterPdfDispatch(rec.mat_type, rec.mat_idx, current_ray, rec, scattered);
 
-					pdf = distance_squared / (light_cosine * light_area);
-					scattered = ray(rec.p, to_light, r.time());
-					float scattering_pdf = scatterPdfDispatch(rec.mat_type, rec.mat_idx, current_ray, rec, scattered);
-
+					// Recursion setup
 					current_ray = scattered;
-					recursionAttenuation[recursionOffset + iter] = attenuation;
+					recursionAttenuation[recursionOffset + iter] = srec.attenuation;
 					recursionEmission[recursionOffset + iter] = emission;
-					
-					// float scattering_pdf = scatterPdfDispatch(rec.mat_type, rec.mat_idx, current_ray, rec, scattered);
 					recursionScatteringPdf[recursionOffset + iter] = scattering_pdf;
 					recursionPdf[recursionOffset + iter] = pdf;
+
+					if (srec.pdf_ptr != nullptr) {
+						delete srec.pdf_ptr;
+					}
+
 					iter++;
 				}
 				else {
@@ -175,6 +181,10 @@ struct Camera {
 		}
 
 		pixel_color *= pixel_samples_scale;
+
+		if (pixel_color[0] != pixel_color[0]) pixel_color[0] = 0.0;
+		if (pixel_color[1] != pixel_color[1]) pixel_color[1] = 0.0;
+		if (pixel_color[2] != pixel_color[2]) pixel_color[2] = 0.0;
 
 		pixel_color[0] = linear_to_gamma(pixel_color[0]);
 		pixel_color[1] = linear_to_gamma(pixel_color[1]);
