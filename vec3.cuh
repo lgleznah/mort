@@ -135,15 +135,18 @@ inline vec3 unit_vector(vec3 v) {
     return v / v.length();
 }
 
-__device__ inline static vec3 random(curandState* states, int idx) {
+__device__ 
+inline static vec3 random(curandState* states, int idx) {
     return vec3(random_float(states, idx), random_float(states, idx), random_float(states, idx));
 }
 
-__device__ inline static vec3 random(curandState* states, int idx, float min, float max) {
+__device__ 
+inline static vec3 random(curandState* states, int idx, float min, float max) {
     return vec3(random_float(states, idx, min, max), random_float(states, idx, min, max), random_float(states, idx, min, max));
 }
 
-__device__ inline static vec3 random_in_unit_sphere(curandState* states, int idx) {
+__device__ 
+inline static vec3 random_in_unit_sphere(curandState* states, int idx) {
     while (true) {
         auto p = random(states, idx, -1, 1);
         if (p.length_squared() >= 1)  continue;
@@ -151,7 +154,8 @@ __device__ inline static vec3 random_in_unit_sphere(curandState* states, int idx
     }
 }
 
-__device__ inline vec3 random_in_unit_disk(curandState* states, int idx) {
+__device__ 
+inline vec3 random_in_unit_disk(curandState* states, int idx) {
     while (true) {
         auto p = vec3(random_float(states, idx, -1, 1), random_float(states, idx, -1, 1), 0);
         if (p.length_squared() < 1)
@@ -159,7 +163,8 @@ __device__ inline vec3 random_in_unit_disk(curandState* states, int idx) {
     }
 }
 
-__device__ inline static vec3 random_on_hemisphere(curandState* states, int idx, const vec3& normal) {
+__device__ 
+inline static vec3 random_on_hemisphere(curandState* states, int idx, const vec3& normal) {
     vec3 on_unit_sphere = unit_vector(random_in_unit_sphere(states, idx));
     if (dot(on_unit_sphere, normal) > 0.0) // In the same hemisphere as the normal
         return on_unit_sphere;
@@ -167,25 +172,42 @@ __device__ inline static vec3 random_on_hemisphere(curandState* states, int idx,
         return -on_unit_sphere;
 }
 
-__device__ inline vec3 reflect(const vec3& v, const vec3& n) {
+__device__
+inline vec3 random_cosine_direction(curandState* states, int idx) {
+    float r1 = random_float(states, idx);
+    float r2 = random_float(states, idx);
+
+    float phi = 2 * 3.1415926 * r1;
+    float x = cos(phi) * sqrt(r2);
+    float y = sin(phi) * sqrt(r2);
+    float z = sqrt(1 - r2);
+
+    return vec3(x, y, z);
+}
+
+__device__ 
+inline vec3 reflect(const vec3& v, const vec3& n) {
     return v - 2*dot(v,n)*n;
 }
 
-__device__ inline vec3 refract(const vec3& uv, const vec3& n, float etai_over_etat) {
+__device__ 
+inline vec3 refract(const vec3& uv, const vec3& n, float etai_over_etat) {
     auto cos_theta = min(dot(-uv, n), 1.0);
     vec3 r_out_perp = etai_over_etat * (uv + cos_theta * n);
     vec3 r_out_parallel = -sqrt(fabs(1.0 - r_out_perp.length_squared())) * n;
     return r_out_perp + r_out_parallel;
 }
 
-__device__ float reflectance(float cosine, float ref_idx) {
+__device__ 
+float reflectance(float cosine, float ref_idx) {
     // Use Schlick's approximation for reflectance.
     float r0 = (1 - ref_idx) / (1 + ref_idx);
     r0 = r0 * r0;
     return r0 + (1 - r0) * pow((1 - cosine), 5);
 }
 
-__device__ __host__ vec3 rotate_around(const vec3& vec, const vec3& axis, float theta) {
+__device__ __host__ 
+vec3 rotate_around(const vec3& vec, const vec3& axis, float theta) {
     vec3 a_parallel_b = (dot(vec, axis) / dot(axis, axis)) * axis;
     vec3 a_orthogonal_b = vec - a_parallel_b;
     vec3 w = cross(axis, a_orthogonal_b);
