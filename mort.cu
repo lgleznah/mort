@@ -421,6 +421,17 @@ void cornell_box(world& data, Camera& cam) {
 	lambertian white_wall(white.getType(), white.getIdx());
 	lambertian green_wall(green.getType(), green.getIdx());
 	diffuse_light lamp(light.getType(), light.getIdx());
+	dielectric glass(1.5);
+
+	hittable_list lights(false);
+	quad ceiling_lamp(point3(343, 554, 332), vec3(-130, 0, 0), vec3(0, 0, -105), lamp.getType(), lamp.getIdx(), true);
+	data.add(ceiling_lamp);
+	lights.add(ceiling_lamp.getType(), ceiling_lamp.getIdx(), data.objs);
+	sphere glass_sphere(point3(190, 90, 190), 90, glass.getType(), glass.getIdx(), true);
+	data.add(glass_sphere);
+	lights.add(glass_sphere.getType(), glass_sphere.getIdx(), data.objs);
+	data.add(lights);
+
 
 	data.add(red);
 	data.add(white);
@@ -431,22 +442,25 @@ void cornell_box(world& data, Camera& cam) {
 	data.add(white_wall);
 	data.add(green_wall);
 	data.add(lamp);
+	data.add(glass);
 
 	data.add(quad(point3(555, 0, 0), vec3(0, 555, 0), vec3(0, 0, 555), green_wall.getType(), green_wall.getIdx()));
 	data.add(quad(point3(0, 0, 0), vec3(0, 555, 0), vec3(0, 0, 555), red_wall.getType(), red_wall.getIdx()));
-	data.add(quad(point3(343, 554, 332), vec3(-130, 0, 0), vec3(0, 0, -105), lamp.getType(), lamp.getIdx()));
 	data.add(quad(point3(0, 0, 0), vec3(555, 0, 0), vec3(0, 0, 555), white_wall.getType(), white_wall.getIdx()));
 	data.add(quad(point3(555, 555, 555), vec3(-555, 0, 0), vec3(0, 0, -555), white_wall.getType(), white_wall.getIdx()));
 	data.add(quad(point3(0, 0, 555), vec3(555, 0, 0), vec3(0, 555, 0), white_wall.getType(), white_wall.getIdx()));
 
 	rotated_box(point3(165, 330, 165), vec3(265, 0, 295), 15, white_wall.getType(), white_wall.getIdx(), data);
-	rotated_box(point3(165, 165, 165), vec3(130, 0, 65), -18, white_wall.getType(), white_wall.getIdx(), data);
+	//rotated_box(point3(165, 165, 165), vec3(130, 0, 65), -18, white_wall.getType(), white_wall.getIdx(), data);
 
 	cam.aspect_ratio = 1.0;
 	cam.image_width = 600;
-	cam.samples_per_pixel = 10;
+	cam.samples_per_pixel = 1000;
 	cam.bounce_limit = 50;
 	cam.background = color(0, 0, 0);
+
+	cam.light_obj_type = lights.getType();
+	cam.light_obj_idx = lights.getIdx();
 
 	cam.vfov = 40;
 	cam.lookfrom = point3(278, 278, -800);

@@ -6,6 +6,7 @@
 #include "hit_record.cuh"
 #include "vec3.cuh"
 #include "aabb.cuh"
+#include "onb.cuh"
 
 #define SOME_THREAD_ONLY(whatevs) {if ((threadIdx.x < 100) && (threadIdx.y < 100) && (blockIdx.x < 100) && (blockIdx.y < 100)) {whatevs;}}
 
@@ -24,6 +25,8 @@ aabb getBboxInfo(int objType, int objIdx);
 aabb host_getBboxInfo(int objType, int objIdx, const struct world_objects& objs);
 int compare_by_axis(const struct hittable_list& list, int obj1, int obj2, const struct world_objects& objs, int axis);
 void swap_objects(int obj_type, int obj_idx_1, int obj_idx_2, world_objects& objs);
+float pdfValueDispatch(int objType, int objIdx, const point3& origin, const vec3& direction);
+vec3 randomDispatch(int objType, int objIdx, const point3& origin, curandState* states, int idx);
 
 struct sphere {
 
@@ -104,6 +107,43 @@ struct sphere {
 			v = theta / 3.141592565;
 		}
 
+		__device__
+		float pdf_value(const point3& origin, const vec3& direction) const {
+			hit_record rec;
+
+			if (!hit(ray(origin, direction, 0), 0.001, HUGE_VALF, rec)) {
+				return false;
+			}
+
+			float cos_theta_max = sqrt(1 - radius * radius / (center1 - origin).length_squared());
+			float solid_angle = 2 * 3.1415926 * (1 - cos_theta_max);
+
+			return 1.0 / solid_angle;
+		}
+
+		__device__
+		vec3 random(const point3& origin, curandState* states, int idx) const {
+			vec3 direction = center1 - origin;
+			float distance_squared = direction.length_squared();
+			onb uvw;
+			uvw.build_from_w(direction);
+			return uvw.local(random_to_sphere(radius, distance_squared, states, idx));
+		}
+
+		__device__
+		static vec3 random_to_sphere(float radius, float distance_squared, curandState* states, int idx) {
+			float r1 = random_float(states, idx);
+			float r2 = random_float(states, idx);
+
+			float z = 1 + r2 * (sqrt(1 - radius * radius / distance_squared) - 1);
+
+			float phi = 2 * 3.141592 * r1;
+			float x = cos(phi) * sqrt(1 - z * z);
+			float y = sin(phi) * sqrt(1 - z * z);
+
+			return vec3(x, y, z);
+		}
+
 	public:
 		point3 center1;
 		float radius;
@@ -134,6 +174,7 @@ struct quad {
 			normal = unit_vector(n);
 			D = dot(normal, Q);
 			w = n / dot(n,n);
+			area = n.length();
 			idx = global_idx++;
 			skip = _skip;
 
@@ -173,6 +214,26 @@ struct quad {
 			return true;
 		}
 
+		__device__
+		float pdf_value(const point3& origin, const vec3& direction) const {
+			hit_record rec;
+
+			// TODO: this should reflect hit time
+			if (!hit(ray(origin, direction, 0), 0.001, HUGE_VALF, rec))
+				return 0;
+
+			auto distance_squared = rec.t * rec.t * direction.length_squared();
+			auto cosine = fabs(dot(direction, rec.normal) / direction.length());
+
+			return distance_squared / (cosine * area);
+		}
+
+		__device__
+		vec3 random(const point3& origin, curandState* states, int idx) const {
+			auto p = Q + (random_float(states, idx) * u) + (random_float(states, idx) * v);
+			return p - origin;
+		}
+
 	public:
 		point3 Q;
 		vec3 u, v;
@@ -180,6 +241,7 @@ struct quad {
 		vec3 w;
 		aabb bbox;
 		float D;
+		float area;
 		int mat_type;
 		int mat_idx;
 		int idx;
@@ -421,6 +483,24 @@ struct hittable_list {
 			}
 
 			return hit_anything;
+		}
+
+		__device__
+		float pdf_value(const point3& origin, const vec3& direction) const {
+			float weight = 1.0 / (float)(num_objs);
+			float sum = 0.0;
+
+			for (uint16_t i = 0; i < num_objs; i++) {
+				sum += weight * pdfValueDispatch(obj_types[i], obj_idxs[i], origin, direction);
+			}
+
+			return sum;
+		}
+
+		__device__
+		vec3 random(const point3& origin, curandState* states, int idx) const {
+			int random_idx = random_int(states, idx, 0, num_objs - 1);
+			return randomDispatch(obj_types[random_idx], obj_idxs[random_idx], origin, states, idx);
 		}
 
 		int getType() const { return OBJ_HITTABLE_LIST; }
@@ -862,6 +942,40 @@ aabb host_getBboxInfo(int objType, int objIdx, const world_objects& objs) {
 			return objs.host_hittable_list[objIdx].bbox;
 			break;
 		}
+}
+
+__device__
+float pdfValueDispatch(int objType, int objIdx, const point3& origin, const vec3& direction) {
+	switch (objType) {
+		case OBJ_SPHERE:
+			return dev_sphere[objIdx].pdf_value(origin, direction);
+			break;
+		case OBJ_QUAD:
+			return dev_quad[objIdx].pdf_value(origin, direction);
+			break;
+		case OBJ_HITTABLE_LIST:
+			return dev_hittable_list[objIdx].pdf_value(origin, direction);
+			break;
+	}
+
+	return 0.0;
+}
+
+__device__
+vec3 randomDispatch(int objType, int objIdx, const point3& origin, curandState* states, int idx) {
+	switch (objType) {
+		case OBJ_SPHERE:
+			return dev_sphere[objIdx].random(origin, states, idx);
+			break;
+		case OBJ_QUAD:
+			return dev_quad[objIdx].random(origin, states, idx);
+			break;
+		case OBJ_HITTABLE_LIST:
+			return dev_hittable_list[objIdx].random(origin, states, idx);
+			break;
+	}
+
+	return vec3(1, 0, 0);
 }
 
 __host__

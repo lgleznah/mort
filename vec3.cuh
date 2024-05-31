@@ -154,6 +154,11 @@ inline static vec3 random_in_unit_sphere(curandState* states, int idx) {
     }
 }
 
+__device__
+inline vec3 random_unit_vector(curandState* states, int idx) {
+    return unit_vector(random_in_unit_sphere(states, idx));
+}
+
 __device__ 
 inline vec3 random_in_unit_disk(curandState* states, int idx) {
     while (true) {

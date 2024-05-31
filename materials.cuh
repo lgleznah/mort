@@ -9,6 +9,7 @@
 #include "ray.cuh"
 #include "textures.cuh"
 #include "onb.cuh"
+#include "pdf.cuh"
 
 #define MAT_LAMBERTIAN 1
 #define MAT_METAL 2
@@ -16,6 +17,13 @@
 #define MAT_DIFFUSE_LIGHT 4
 #define MAT_ISOTROPIC 5
 
+struct scatter_record {
+	public:
+		color attenuation;
+		pdf* pdf_ptr;
+		bool skip_pdf;
+		ray skip_pdf_ray;
+};
 
 struct lambertian {
 	public:
@@ -28,14 +36,10 @@ struct lambertian {
 		__host__ lambertian(int _texType, int _texIdx): texType(_texType), texIdx(_texIdx) { idx = global_idx++; }
 
 		__device__ 
-		bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, float& pdf, curandState* states, int idx) const {
-			onb uvw;
-			uvw.build_from_w(rec.normal);
-			vec3 scatter_direction = uvw.local(random_cosine_direction(states, idx));
-			
-			scattered = ray(rec.p, unit_vector(scatter_direction), r_in.time());
-			attenuation = valueDispatch(texType, texIdx, rec.u, rec.v, rec.p);
-			pdf = dot(uvw.w(), scattered.direction()) / 3.1415926;
+		bool scatter(const ray& r_in, const hit_record& rec, scatter_record& srec, curandState* states, int idx) const {
+			srec.attenuation = valueDispatch(texType, texIdx, rec.u, rec.v, rec.p);
+			srec.pdf_ptr = new cosine_pdf(rec.normal);
+			srec.skip_pdf = false;
 			return true;
 		}
 
@@ -67,12 +71,16 @@ struct metal {
 		__host__ metal(const color& a, float f): albedo(a), fuzz(f) { idx = global_idx++; }
 
 		__device__ 
-		bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, float& pdf, curandState* states, int idx) const {
-			vec3 reflected = reflect(unit_vector(r_in.direction()), rec.normal);
-			reflected += random_in_unit_sphere(states, idx) * fuzz;
-			scattered = ray(rec.p, reflected, r_in.time());
-			attenuation = albedo;
-			return dot(scattered.direction(), rec.normal) > 0;
+		bool scatter(const ray& r_in, const hit_record& rec, scatter_record& srec, curandState* states, int idx) const {
+			vec3 reflected = reflect(r_in.direction(), rec.normal);
+			reflected = unit_vector(reflected) + (random_unit_vector(states, idx) * fuzz);
+
+			srec.attenuation = albedo;
+			srec.pdf_ptr = nullptr;
+			srec.skip_pdf = true;
+			srec.skip_pdf_ray = ray(rec.p, reflected, r_in.time());
+
+			return true;
 		}
 
 		__device__
@@ -97,8 +105,10 @@ struct dielectric {
 		__host__ dielectric(float refraction_index): ior(refraction_index), inv_ior(1.0 / refraction_index), albedo(color(1.0,1.0,1.0)) { idx = global_idx++; }
 
 		__device__ 
-		bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, float& pdf, curandState* states, int idx) const {
-			attenuation = albedo;
+		bool scatter(const ray& r_in, const hit_record& rec, scatter_record& srec, curandState* states, int idx) const {
+			srec.attenuation = color(1.0, 1.0, 1.0);
+			srec.pdf_ptr = nullptr;
+			srec.skip_pdf = true;
 			float refraction_ratio = rec.front_face ? inv_ior : ior;
 
 			vec3 unit_direction = unit_vector(r_in.direction());
@@ -115,7 +125,7 @@ struct dielectric {
 				direction = refract(unit_direction, rec.normal, refraction_ratio);
 			}
 
-			scattered = ray(rec.p, direction, r_in.time());
+			srec.skip_pdf_ray = ray(rec.p, direction, r_in.time());
 			return true;
 		}
 
@@ -139,7 +149,7 @@ struct diffuse_light {
 		__host__ diffuse_light(int _texType, int _texIdx): texType(_texType), texIdx(_texIdx) { idx = global_idx++; }
 
 		__device__
-		bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, float& pdf, curandState* states, int idx) const {
+		bool scatter(const ray& r_in, const hit_record& rec, scatter_record& srec, curandState* states, int idx) const {
 			return false;
 		}
 
@@ -170,10 +180,10 @@ struct isotropic {
 		isotropic(int _texType, int _texIdx) : texType(_texType), texIdx(_texIdx) { idx = global_idx++; }
 
 		__device__
-		bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, float& pdf, curandState* states, int idx) const {
-			scattered = ray(rec.p, random_in_unit_sphere(states, idx), r_in.time());
-			attenuation = valueDispatch(texType, texIdx, rec.u, rec.v, rec.p);
-			pdf = 1 / (4 * 3.1415926);
+		bool scatter(const ray& r_in, const hit_record& rec, scatter_record& srec, curandState* states, int idx) const {
+			srec.attenuation = valueDispatch(texType, texIdx, rec.u, rec.v, rec.p);
+			srec.pdf_ptr = new sphere_pdf();
+			srec.skip_pdf = false;
 			return true;
 		}
 
@@ -260,26 +270,26 @@ void materialsToDevice(world_materials mats) {
 }
 
 __device__ 
-bool scatterDispatch(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, float& pdf, curandState* states, int idx) {
+bool scatterDispatch(const ray& r_in, const hit_record& rec, scatter_record& srec, curandState* states, int idx) {
 	switch (rec.mat_type) {
 	case MAT_LAMBERTIAN:
-		return dev_lambertian[rec.mat_idx].scatter(r_in, rec, attenuation, scattered, pdf, states, idx);
+		return dev_lambertian[rec.mat_idx].scatter(r_in, rec, srec, states, idx);
 		break;
 
 	case MAT_METAL:
-		return dev_metal[rec.mat_idx].scatter(r_in, rec, attenuation, scattered, pdf, states, idx);
+		return dev_metal[rec.mat_idx].scatter(r_in, rec, srec, states, idx);
 		break;
 
 	case MAT_DIELECTRIC:
-		return dev_dielectric[rec.mat_idx].scatter(r_in, rec, attenuation, scattered, pdf, states, idx);
+		return dev_dielectric[rec.mat_idx].scatter(r_in, rec, srec, states, idx);
 		break;
 
 	case MAT_DIFFUSE_LIGHT:
-		return dev_diffuse_light[rec.mat_idx].scatter(r_in, rec, attenuation, scattered, pdf, states, idx);
+		return dev_diffuse_light[rec.mat_idx].scatter(r_in, rec, srec, states, idx);
 		break;
 
 	case MAT_ISOTROPIC:
-		return dev_isotropic[rec.mat_idx].scatter(r_in, rec, attenuation, scattered, pdf, states, idx);
+		return dev_isotropic[rec.mat_idx].scatter(r_in, rec, srec, states, idx);
 	}
 
 	return false;
@@ -331,7 +341,7 @@ float scatterPdfDispatch(int mat_type, int mat_idx, const ray& r_in, const hit_r
 			break;
 
 		case MAT_ISOTROPIC:
-			return dev_isotropic[mat_idx].scatter_pdf(r_in, rec, scattered);;
+			return dev_isotropic[mat_idx].scatter_pdf(r_in, rec, scattered);
 			break;
 	}
 

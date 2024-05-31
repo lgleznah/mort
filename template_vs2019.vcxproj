@@ -116,6 +116,7 @@
     <ClInclude Include="camera.cuh" />
     <ClInclude Include="hit_record.cuh" />
     <ClInclude Include="onb.cuh" />
+    <ClInclude Include="pdf.cuh" />
     <ClInclude Include="world.cuh" />
     <ClInclude Include="img_loader.h" />
     <ClInclude Include="include\book.h" />

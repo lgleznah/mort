@@ -28,6 +28,19 @@ float random_float(curandState* states, int idx, float min, float max) {
 	return base_rng * (max - min) + min;
 }
 
+__device__
+int random_int(curandState* states, int idx, int min, int max) {
+	curandState localState = states[idx];
+	float random = curand_uniform(&localState);
+	states[idx] = localState;
+
+	random *= (max - min + 0.999999);
+	random += min;
+	int myrand = (int)truncf(random);
+
+	return myrand;
+}
+
 __host__ 
 float random_float() {
 	return rand() / (RAND_MAX + 1.0);
