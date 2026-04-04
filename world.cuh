@@ -21,6 +21,7 @@ struct world {
 			objs.allocObjs();
 			mats.allocMats();
 			texs.allocTexs();
+			bvh_mode = false;
 		}
 
 		void add(sphere object) { 
@@ -49,6 +50,7 @@ struct world {
 
 		void add(bvh object) {
 			objs.host_bvh[objs.num_bvh++] = object;
+			bvh_mode = true;
 		}
 
 		void add(lambertian mat) {

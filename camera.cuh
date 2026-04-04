@@ -112,14 +112,25 @@ struct Camera {
 						continue;
 					}
 
-					// Create PDFs
-					hittable_pdf light_pdf(light_obj_type, light_obj_idx, rec.p);
-					mixture_pdf mixed_pdf(&light_pdf, srec.pdf_ptr);
+					// Skip sampling from lights if there are no lights.
+					// Should not be a problem, as all threads will take either
+					// this branch or the else.
+					if (light_obj_type == -1) {
+						scattered = ray(rec.p, srec.pdf_ptr->generate(states, idx), r.time());
+						pdf = srec.pdf_ptr->value(scattered.direction());
+						scattering_pdf = scatterPdfDispatch(rec.mat_type, rec.mat_idx, current_ray, rec, scattered);
+					}
 
-					// Compute scattered ray, and its corresponding object scatter PDF and ray PDF values
-					scattered = ray(rec.p, mixed_pdf.generate(states, idx), r.time());
-					pdf = mixed_pdf.value(scattered.direction());
-					scattering_pdf = scatterPdfDispatch(rec.mat_type, rec.mat_idx, current_ray, rec, scattered);
+					else {
+						// Create PDFs
+						hittable_pdf light_pdf(light_obj_type, light_obj_idx, rec.p);
+						mixture_pdf mixed_pdf(&light_pdf, srec.pdf_ptr);
+
+						// Compute scattered ray, and its corresponding object scatter PDF and ray PDF values
+						scattered = ray(rec.p, mixed_pdf.generate(states, idx), r.time());
+						pdf = mixed_pdf.value(scattered.direction());
+						scattering_pdf = scatterPdfDispatch(rec.mat_type, rec.mat_idx, current_ray, rec, scattered);
+					}
 
 					// Recursion setup
 					current_ray = scattered;

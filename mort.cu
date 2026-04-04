@@ -212,6 +212,8 @@ void random_spheres(world& data, Camera& cam) {
 	cam.samples_per_pixel = 10;
 	cam.bounce_limit = 5;
 
+	cam.light_obj_type = -1;
+
 	cam.vfov = 20;
 	cam.lookfrom = point3(13, 2, 3);
 	cam.lookat = point3(0, 0, 0);
@@ -239,6 +241,8 @@ void two_spheres(world& data, Camera& cam) {
 	cam.image_width = 1200;
 	cam.samples_per_pixel = 20;
 	cam.bounce_limit = 50;
+
+	cam.light_obj_type = -1;
 
 	cam.vfov = 20;
 	cam.lookfrom = point3(13, 2, 3);
@@ -272,6 +276,8 @@ void out_of_order_spheres(world& data, Camera& cam, int n_spheres) {
 	cam.samples_per_pixel = 1;
 	cam.bounce_limit = 5;
 
+	cam.light_obj_type = -1;
+
 	cam.vfov = 20;
 	cam.lookfrom = point3(13, 2, 3);
 	cam.lookat = point3(0, 0, 0);
@@ -296,6 +302,8 @@ void earth(world& data, Camera& cam) {
 	cam.samples_per_pixel = 100;
 	cam.bounce_limit = 50;
 
+	cam.light_obj_type = -1;
+
 	cam.vfov = 20;
 	cam.lookfrom = point3(0, 0, 12);
 	cam.lookat = point3(0, 0, 0);
@@ -318,6 +326,8 @@ void two_perlin_spheres(world& data, Camera& cam) {
 	cam.image_width = 1200;
 	cam.samples_per_pixel = 5;
 	cam.bounce_limit = 10;
+
+	cam.light_obj_type = -1;
 
 	cam.vfov = 20;
 	cam.lookfrom = point3(13, 2, 3);
@@ -369,43 +379,11 @@ void quads(world& data, Camera& cam) {
 	cam.samples_per_pixel = 100;
 	cam.bounce_limit = 50;
 
+	cam.light_obj_type = -1;
+
 	cam.vfov = 20;
 	cam.lookfrom = point3(0, 0, 9);
 	cam.lookat = point3(0, 0, 0);
-	cam.vup = vec3(0, 1, 0);
-
-	cam.defocus_angle = 0;
-}
-
-void simple_light(world& data, Camera& cam) {
-
-	noise_texture pertext(4);
-	lambertian permat(pertext.getType(), pertext.getIdx());
-	sphere s1(point3(0, -1000, 0), 1000, permat.getType(), permat.getIdx());
-	sphere s2(point3(0, 2, 0), 2, permat.getType(), permat.getIdx());
-	data.add(pertext);
-	data.add(permat);
-	data.add(s1);
-	data.add(s2);
-
-	solid_color lightcolor(color(4, 4, 4));
-	diffuse_light difflight(lightcolor.getType(), lightcolor.getIdx());
-	quad farQuad(point3(3, 1, -2), vec3(2, 0, 0), vec3(0, 2, 0), difflight.getType(), difflight.getIdx());
-	sphere lightOrb(point3(0, 7, 0), 2, difflight.getType(), difflight.getIdx());
-	data.add(lightcolor);
-	data.add(difflight);
-	data.add(farQuad);
-	data.add(lightOrb);
-
-	cam.aspect_ratio = 16.0 / 9.0;
-	cam.image_width = 1200;
-	cam.samples_per_pixel = 10;
-	cam.bounce_limit = 10;
-	cam.background = color(0.01, 0.01, 0.01);
-
-	cam.vfov = 20;
-	cam.lookfrom = point3(26, 3, 6);
-	cam.lookat = point3(0, 2, 0);
 	cam.vup = vec3(0, 1, 0);
 
 	cam.defocus_angle = 0;
@@ -431,7 +409,6 @@ void cornell_box(world& data, Camera& cam) {
 	data.add(glass_sphere);
 	lights.add(glass_sphere.getType(), glass_sphere.getIdx(), data.objs);
 	data.add(lights);
-
 
 	data.add(red);
 	data.add(white);
@@ -514,6 +491,9 @@ void cornell_smoke(world& data, Camera& cam) {
 	cam.samples_per_pixel = 2000;
 	cam.bounce_limit = 50;
 	cam.background = color(0, 0, 0);
+
+	cam.light_obj_type = lamp.getType();
+	cam.light_obj_idx = lamp.getIdx();
 
 	cam.vfov = 40;
 	cam.lookfrom = point3(278, 278, -800);
@@ -639,6 +619,9 @@ void final_scene(world& data, Camera& cam, int image_width, int samples_per_pixe
 	cam.bounce_limit = max_depth;
 	cam.background = color(0, 0, 0);
 
+	cam.light_obj_type = light.getType();
+	cam.light_obj_idx = light.getIdx();
+
 	cam.vfov = 40;
 	cam.lookfrom = point3(478, 278, -600);
 	cam.lookat = point3(278, 278, 0);
@@ -647,12 +630,21 @@ void final_scene(world& data, Camera& cam, int image_width, int samples_per_pixe
 	cam.defocus_angle = 0;
 }
 
-int main(void) {
+int main(int argc, char* argv[]) {
 	// Scene setup
 	Camera cam;
 	world data;
 
-	int scene_idx = 7;
+	if (argc != 2) {
+		printf("Usage: mort.exe <number_between_1_and_11");
+		return -1;
+	}
+
+	int scene_idx = atoi(argv[1]);
+	if (scene_idx < 1 && scene_idx > 11) {
+		printf("Usage: mort.exe <number_between_1_and_11");
+		return -1;
+	}
 
 	switch(scene_idx) {
 		case 1:
@@ -676,26 +668,22 @@ int main(void) {
 			break;
 
 		case 6:
-			simple_light(data, cam);
-			break;
-
-		case 7:
 			cornell_box(data, cam);
 			break;
 
-		case 8:
+		case 7:
 			cornell_smoke(data, cam);
 			break;
 		
-		case 9:
+		case 8:
 			final_scene(data, cam, 800, 1000, 40);
 			break;
 
-		case 10:
+		case 9:
 			final_scene(data, cam, 400, 250, 4);
 			break;
 
-		case 11:
+		case 10:
 			out_of_order_spheres(data, cam, 35);
 			break;
 	}
