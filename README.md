@@ -4,11 +4,11 @@ My Own RayTracer - A personal project of writing a raytracer in CUDA.
 After having read through the amazing [Ray Tracing in One Weekend](https://raytracing.github.io/) book series, and also after having read about CUDA, I decided to try porting the raytracer to work on the GPU.
 
 # How to run
-In the root of the repository, open a terminal and write the following command:
+Go to [the latest release of the repository](https://github.com/lgleznah/mort/releases), and download both `mort.exe` and `glut64.dll`.
 
-`mort.exe <number_of_scene_between_1_and_10>`
+Go to where the files have been downloaded, open a terminal there, and write: `mort.exe <number_of_scene_between_1_and_10>`
 
-For reference, Scene 1 takes around 16 seconds to render on a Nvidia GeForce RTX 2080
+For reference, Scene 1 takes around 16 seconds to render on a Nvidia GeForce RTX 2080.
 
 # How to build
 This code has been built on a Windows 10 machine with both CUDA 11.3 (compiled on Visual Studio 2019) and with CUDA 13.2 (compiled on Visual Studio 2022).
