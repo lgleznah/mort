@@ -49,9 +49,7 @@ This code has been tested in two devices with the following specs:
   Installed on	‎19-‎Dec-‎23
   OS Build	19045.6466
 
-Prior to installing, make sure SDL2 is installed on the computer (for example, for SDL2 version 32.10, download the development files from [here](https://github.com/libsdl-org/SDL/releases/download/release-2.32.10/SDL2-devel-2.32.10-VC.zip), and extract the contents of the folder in `C:\SDL2`, such that all its subfolders (`cmake`, `docs` and so on) are under `SDL2`).
-
-Also make sure to install the [CUDA toolkit](https://developer.nvidia.com/cuda-downloads) (select your OS, architecture, OS version, local installer, download and execute the CUDA Toolkit installer).
+Make sure to install the [CUDA toolkit](https://developer.nvidia.com/cuda-downloads) (select your OS, architecture, OS version, local installer, download and execute the CUDA Toolkit installer).
 
 Open `mort.sln` on Visual Studio, and compile the project on Release mode. CUDA might have to be added as a build customization (right click on the project->Build dependencies->Build customizations, and select the CUDA version matching the one you installed before).
 
