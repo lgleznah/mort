@@ -209,8 +209,8 @@ void random_spheres(world& data, Camera& cam) {
 
 	cam.aspect_ratio = 16.0 / 9.0;
 	cam.image_width = 1200;
-	cam.samples_per_pixel = 10;
-	cam.bounce_limit = 5;
+	cam.samples_per_pixel = 100;
+	cam.bounce_limit = 20;
 
 	cam.light_obj_type = -1;
 
