@@ -13,4 +13,6 @@ For reference, Scene 1 takes around 16 seconds to render on a Nvidia GeForce RTX
 # How to build
 This code has been built on a Windows 10 machine. It has both been tested with CUDA 11.3 (compiled on Visual Studio 2019) and with CUDA 13.2 (compiled on Visual Studio 2022).
 
+Prior to installing, make sure SDL2 is installed on the computer (for example, for SDL2 version 32.10, download the development files from [here](https://github.com/libsdl-org/SDL/releases/download/release-2.32.10/SDL2-devel-2.32.10-VC.zip), and extract the contents of the folder in `C:\SDL2`).
+
 Open `mort.sln` on Visual Studio, and compile the project. CUDA might have to be added as a build customization (right click on the project->Build dependencies->Build customizations, and select CUDA), and `mort.cu` file type might have to be set as CUDA C/C++ (right click on the `mort.cu` file->Properties->General, and change the element type to CUDA C/C++).
