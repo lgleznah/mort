@@ -4,11 +4,11 @@ My Own RayTracer - A personal project of writing a raytracer in CUDA.
 After having read through the amazing [Ray Tracing in One Weekend](https://raytracing.github.io/) book series, and also after having read about CUDA, I decided to try porting the raytracer to work on the GPU.
 
 # How to run
-In the root of the repository, open a terminal and write the following command:
+Go to [the latest release of the repository](https://github.com/lgleznah/mort/releases), and download both `mort.exe` and `glut64.dll`.
 
-`mort.exe <number_of_scene_between_1_and_10>`
+Go to where the files have been downloaded, open a terminal there, and write: `mort.exe <number_of_scene_between_1_and_10>`
 
-For reference, Scene 1 takes around 16 seconds to render on a Nvidia GeForce RTX 2080
+For reference, Scene 1 takes around 16 seconds to render on a Nvidia GeForce RTX 2080.
 
 # How to build
 This code has been built on a Windows 10 machine with both CUDA 11.3 (compiled on Visual Studio 2019) and with CUDA 13.2 (compiled on Visual Studio 2022).
@@ -49,9 +49,7 @@ This code has been tested in two devices with the following specs:
   Installed on	‎19-‎Dec-‎23
   OS Build	19045.6466
 
-Prior to installing, make sure SDL2 is installed on the computer (for example, for SDL2 version 32.10, download the development files from [here](https://github.com/libsdl-org/SDL/releases/download/release-2.32.10/SDL2-devel-2.32.10-VC.zip), and extract the contents of the folder in `C:\SDL2`, such that all its subfolders (`cmake`, `docs` and so on) are under `SDL2`).
-
-Also make sure to install the [CUDA toolkit](https://developer.nvidia.com/cuda-downloads) (select your OS, architecture, OS version, local installer, download and execute the CUDA Toolkit installer).
+Make sure to install the [CUDA toolkit](https://developer.nvidia.com/cuda-downloads) (select your OS, architecture, OS version, local installer, download and execute the CUDA Toolkit installer).
 
 Open `mort.sln` on Visual Studio, and compile the project on Release mode. CUDA might have to be added as a build customization (right click on the project->Build dependencies->Build customizations, and select the CUDA version matching the one you installed before).
 
