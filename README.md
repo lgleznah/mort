@@ -4,7 +4,7 @@ My Own RayTracer - A personal project of writing a raytracer in CUDA.
 After having read through the amazing [Ray Tracing in One Weekend](https://raytracing.github.io/) book series, and also after having read about CUDA, I decided to try porting the raytracer to work on the GPU.
 
 # How to run
-Go to [the latest release of the repository](https://github.com/lgleznah/mort/releases), and download both `mort.exe` and `glut64.dll`.
+Go to [the latest release of the repository](https://github.com/lgleznah/mort/releases), download and extract `MORt-<version>-binaries.zip`.
 
 Go to where the files have been downloaded, open a terminal there, and write: `mort.exe <number_of_scene_between_1_and_10>`
 
