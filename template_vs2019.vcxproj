@@ -110,11 +110,6 @@
     </CudaLink>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <CudaCompile Include="mort.cu">
-      <FileType>Document</FileType>
-    </CudaCompile>
-  </ItemGroup>
-  <ItemGroup>
     <ClInclude Include="aabb.cuh" />
     <ClInclude Include="camera.cuh" />
     <ClInclude Include="hit_record.cuh" />
