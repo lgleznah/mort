@@ -53,6 +53,8 @@ Prior to installing, make sure SDL2 is installed on the computer (for example, f
 
 Also make sure to install the [CUDA toolkit](https://developer.nvidia.com/cuda-downloads) (select your OS, architecture, OS version, local installer, download and execute the CUDA Toolkit installer).
 
-Open `mort.sln` on Visual Studio, and compile the project on Release mode. CUDA might have to be added as a build customization (right click on the project->Build dependencies->Build customizations, and select the CUDA version matching the one you installed before), and `mort.cu` file type might have to be set as CUDA C/C++ (right click on the `mort.cu` file->Properties->General, and change the element type to CUDA C/C++).
+Open `mort.sln` on Visual Studio, and compile the project on Release mode. CUDA might have to be added as a build customization (right click on the project->Build dependencies->Build customizations, and select the CUDA version matching the one you installed before).
+
+In case the project does not compile, it is likely that the `mort.cu` file appears as not added to the project, and once added, its file type is "Does not participate in build". In this case, after adding `mort.cu` to the project, change its file type to CUDA C/C++ (right click on the `mort.cu` file->Properties->General, and change the element type to CUDA C/C++).
 
 After compiling, the resulting executable will be at `bin\win64\Release\mort.exe`. To run it, in the root of the repository, run `bin\win64\Release\mort.exe <number_of_scene_between_1_and_10>`.
